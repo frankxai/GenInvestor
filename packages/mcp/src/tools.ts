@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  CalibrationLedger,
   ECB_SERIES,
   EcbProvider,
   EvidenceLedger,
@@ -118,6 +119,47 @@ export function buildTools(ctx: ToolContext): ToolDef[] {
         const js = join(ctx.home, "briefs", "brief.json");
         if (!existsSync(md) || !existsSync(js)) return { text: "No brief has been published yet. Run run_today first.", isError: true };
         return { text: readFileSync(md, "utf8"), structured: JSON.parse(readFileSync(js, "utf8")) };
+      },
+    },
+    {
+      name: "list_opportunities",
+      title: "Read the latest opportunity cards",
+      description:
+        "Return the last set of candidates for research found against the owner's own mandate, with evidence, what would prove each wrong, and the case against. " +
+        "Candidates, not recommendations. Runs nothing: the scan is started by the owner with the geninvestor command line.",
+      inputSchema: { type: "object", additionalProperties: false, properties: {} },
+      annotations: READ_ONLY,
+      handler: () => {
+        gate("research");
+        const md = join(ctx.home, "opportunities", "opportunities.md");
+        const js = join(ctx.home, "opportunities", "opportunities.json");
+        if (!existsSync(md) || !existsSync(js)) {
+          return { text: "No scan has been run yet. The owner starts one with `geninvestor scout --mandate FILE` (it needs a mandate file and an SEC contact identity).", isError: true };
+        }
+        return { text: readFileSync(md, "utf8"), structured: JSON.parse(readFileSync(js, "utf8")) };
+      },
+    },
+    {
+      name: "get_calibration",
+      title: "Read the calibration record",
+      description:
+        "Return how many forecasts the owner has registered, how many are resolved, which are due, and the Brier score and reliability once at least 30 are resolved. " +
+        "Below that, only counts are returned. This tool cannot register or resolve a call: probabilities are the owner's own.",
+      inputSchema: { type: "object", additionalProperties: false, properties: {} },
+      annotations: READ_ONLY,
+      handler: () => {
+        gate("research");
+        const path = join(ctx.home, "calibration.db");
+        if (!existsSync(path)) return { text: "No forecasts have been registered yet.", structured: { resolved: 0, open: 0, due: [] } };
+        const cal = new CalibrationLedger(path, ctx.now);
+        try {
+          const score = cal.score();
+          const due = cal.due().map((c) => ({ id: c.id, claim: c.claim, resolvesOn: c.resolvesOn }));
+          const text = [`Resolved ${score.resolved}, open ${score.open}, due ${due.length}.`, score.note ?? `Brier ${score.brier} against a baseline of ${score.baselineBrier}.`].join("\n");
+          return { text, structured: { ...score, due } as unknown as Record<string, unknown> };
+        } finally {
+          cal.close();
+        }
       },
     },
     {

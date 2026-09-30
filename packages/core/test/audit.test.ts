@@ -109,6 +109,37 @@ test("tampered sources and licence-blocked sources are blocked", () => {
   assert.ok(claimsAudit(b, sim, { context: "hosted_paid" }).findings.some((f) => f.code === "DISPLAY_BLOCKED"));
 });
 
+test("a claim cannot cite a value its own text does not state", () => {
+  const { ledger, source } = setup();
+  const sneaky = ledger.addClaim({
+    text: "EUR/USD was about one and a tenth",
+    kind: "fact", producedBy: "test", runId: "sneaky",
+    links: [{ sourceId: source.id, kind: "field", fieldOrQuote: "value", value: 1.085 }],
+  });
+  const r = claimsAudit(brief([{ text: "EUR/USD was about one and a tenth", claimIds: [sneaky.id] }]), ledger, { context: "local_user" });
+  assert.ok(r.findings.some((f) => f.code === "LINK_VALUE_NOT_STATED"));
+});
+
+test("the value check ignores sign, so 'down 0.2%' may cite -0.2", () => {
+  const { ledger, source } = setup();
+  const c = ledger.addClaim({
+    text: "It was down 0.2% on the prior observation",
+    kind: "fact", producedBy: "test", runId: "signs",
+    links: [{ sourceId: source.id, kind: "computed", fieldOrQuote: "pct_change", value: -0.2 }],
+  });
+  const recompute = { pct_change: () => -0.2 };
+  assert.equal(claimsAudit(brief([{ text: "It was down 0.2% on the prior observation", claimIds: [c.id] }]), ledger, { context: "local_user", recompute }).passed, true);
+});
+
+test("text-valued field links (such as a filing date) are compared as text", () => {
+  const ledger = new EvidenceLedger();
+  const s = ledger.addSource({ provider: "p", url: "u://x", asOf: "2026-01-01", retrievedAt: "2026-01-02T00:00:00Z", licenceClass: "public", delayedBySeconds: 0, payload: { filed: "2025-03-21" } });
+  const ok = ledger.addClaim({ text: "The annual report was filed on 2025-03-21", kind: "fact", producedBy: "t", runId: "d1", links: [{ sourceId: s.id, kind: "field", fieldOrQuote: "filed", value: "2025-03-21" }] });
+  const bad = ledger.addClaim({ text: "The annual report was filed on 2025-03-22", kind: "fact", producedBy: "t", runId: "d2", links: [{ sourceId: s.id, kind: "field", fieldOrQuote: "filed", value: "2025-03-22" }] });
+  assert.equal(claimsAudit(brief([{ text: "The annual report was filed on 2025-03-21", claimIds: [ok.id] }]), ledger, { context: "local_user" }).passed, true);
+  assert.ok(claimsAudit(brief([{ text: "The annual report was filed on 2025-03-22", claimIds: [bad.id] }]), ledger, { context: "local_user" }).findings.some((f) => f.code === "FIELD_MISMATCH"));
+});
+
 test("dates are not treated as numbers that need evidence", () => {
   assert.deepEqual(numbersIn("On 2026-09-29 the rate was 1,085.5"), [1085.5]);
 });

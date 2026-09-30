@@ -135,6 +135,12 @@ export class TemplateAnalyst implements Analyst {
 /** Independent rule check: every linked field must still hold the value the line states. */
 export class RulesVerifier implements Verifier {
   readonly provider = "rules";
+  private readonly recompute: Record<string, (payload: unknown) => number>;
+
+  constructor(recompute: Record<string, (payload: unknown) => number> = {}) {
+    this.recompute = recompute;
+  }
+
   check(lines: BriefLine[], ledger: EvidenceLedger) {
     const issues: string[] = [];
     lines.forEach((line, i) => {
@@ -144,10 +150,28 @@ export class RulesVerifier implements Verifier {
           issues.push(`line ${i}: claim ${id} missing`);
           continue;
         }
-        for (const link of claim.links.filter((l) => l.kind === "field")) {
+        for (const link of claim.links) {
           const src = ledger.getSource(link.sourceId);
-          const actual = src ? getPath(src.payload, link.fieldOrQuote) : undefined;
-          if (actual === undefined || Number(actual) !== Number(link.value)) issues.push(`line ${i}: ${link.fieldOrQuote} does not match its source`);
+          if (!src) {
+            issues.push(`line ${i}: source ${link.sourceId} missing`);
+            continue;
+          }
+          if (link.kind === "field") {
+            const actual = getPath(src.payload, link.fieldOrQuote);
+            const numeric = link.value !== null && link.value !== undefined && link.value !== "" && Number.isFinite(Number(link.value));
+            const same = numeric ? Number(actual) === Number(link.value) : String(actual) === String(link.value);
+            if (actual === undefined || !same) issues.push(`line ${i}: ${link.fieldOrQuote} does not match its source`);
+          } else if (link.kind === "computed") {
+            const fn = this.recompute[link.fieldOrQuote];
+            if (!fn) continue; // the audit reports a missing recompute function
+            let again: number | undefined;
+            try {
+              again = fn(src.payload);
+            } catch {
+              again = undefined;
+            }
+            if (again === undefined || again !== Number(link.value)) issues.push(`line ${i}: ${link.fieldOrQuote} does not recompute to the stated value`);
+          }
         }
       }
     });
@@ -166,7 +190,6 @@ function describe(p: SeriesPayload, sourceId: string): { text: string; change: n
     if (!p.prior) return { text: `${p.label} was ${withUnit(p.latest.value, p.unit)} on ${p.latest.date}`, change: null, links };
     links.push({ sourceId, kind: "field", fieldOrQuote: "prior.value", value: p.prior.value });
     const change = round2(p.latest.value - p.prior.value);
-    if (change !== 0) links.push({ sourceId, kind: "computed", fieldOrQuote: "pp_change", value: change });
     return { text: `${p.label} was set to ${withUnit(p.latest.value, p.unit)} on ${p.latest.date}, from ${withUnit(p.prior.value, p.unit)}`, change, links };
   }
 

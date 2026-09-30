@@ -20,6 +20,7 @@ export type FindingCode =
   | "FIELD_MISMATCH"
   | "QUOTE_MISMATCH"
   | "RECOMPUTE_MISMATCH"
+  | "LINK_VALUE_NOT_STATED"
   | "DISPLAY_BLOCKED";
 
 export interface Finding {
@@ -91,12 +92,24 @@ export function claimsAudit(brief: Brief, ledger: EvidenceLedger, options: Audit
         if (!canDisplay(source.licenceClass, options.context)) {
           add("DISPLAY_BLOCKED", `source ${source.id} is ${source.licenceClass}, not displayable in ${options.context}`);
         }
+        const numericLink = (link.kind === "field" || link.kind === "computed") && link.value !== null && link.value !== undefined && link.value !== "" && Number.isFinite(Number(link.value));
+        if (numericLink) {
+          // A link may only cite a value the claim actually states (sign aside): otherwise a claim could
+          // say one number in its text and point at evidence for another.
+          const linked = Math.abs(Number(link.value));
+          if (!numbersIn(claim.text).some((n) => close(Math.abs(n), linked, tol))) {
+            add("LINK_VALUE_NOT_STATED", `claim ${id} links ${link.fieldOrQuote} = ${String(link.value)} but its text does not state that value`);
+          }
+        }
         if (link.kind === "field") {
           const actual = getPath(source.payload, link.fieldOrQuote);
-          const stated = link.value === null || link.value === undefined ? undefined : Number(link.value);
           if (actual === undefined) add("FIELD_MISMATCH", `${link.fieldOrQuote} is missing from source ${source.id}`);
-          else if (stated !== undefined && !(typeof actual === "number" && close(actual, stated, tol))) {
-            add("FIELD_MISMATCH", `${link.fieldOrQuote} is ${String(actual)} in source ${source.id}, claim states ${stated}`);
+          else if (numericLink) {
+            if (!(typeof actual === "number" && close(actual, Number(link.value), tol))) {
+              add("FIELD_MISMATCH", `${link.fieldOrQuote} is ${String(actual)} in source ${source.id}, claim states ${String(link.value)}`);
+            }
+          } else if (link.value !== null && link.value !== undefined && String(actual) !== String(link.value)) {
+            add("FIELD_MISMATCH", `${link.fieldOrQuote} is ${String(actual)} in source ${source.id}, claim states ${String(link.value)}`);
           }
         } else if (link.kind === "quote") {
           const haystack = typeof source.payload === "string" ? source.payload : JSON.stringify(source.payload);

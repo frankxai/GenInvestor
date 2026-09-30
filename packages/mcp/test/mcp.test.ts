@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { FixtureProvider, loadPolicyTable } from "../../core/src/index.ts";
+import { CalibrationLedger, FixtureProvider, loadPolicyTable } from "../../core/src/index.ts";
 import type { PolicyTable, SeriesPayload } from "../../core/src/index.ts";
 import { createServer, SUPPORTED_PROTOCOLS } from "../src/server.ts";
 import { buildTools, INSTRUCTIONS } from "../src/tools.ts";
@@ -53,7 +53,8 @@ test("tools/list exposes read-only evidence tools and no tool can approve, sign,
   const { rpc } = make();
   await rpc("initialize", {});
   const { tools } = (await rpc("tools/list")).result as { tools: { name: string; annotations: any; inputSchema: any }[] };
-  assert.deepEqual(tools.map((t) => t.name).sort(), ["check_action", "explain_claim", "get_latest_brief", "run_today", "verify_ledger"]);
+  assert.deepEqual(tools.map((t) => t.name).sort(), ["check_action", "explain_claim", "get_calibration", "get_latest_brief", "list_opportunities", "run_today", "verify_ledger"]);
+  assert.ok(!tools.some((t) => /register|resolve|record|set_/i.test(t.name)), "no tool can register or resolve a forecast: probabilities are the owner's own");
   for (const t of tools) {
     assert.equal(t.annotations.destructiveHint, false, t.name);
     assert.equal(t.inputSchema.type, "object");
@@ -111,6 +112,33 @@ test("run_today publishes a brief, then get_latest_brief, explain_claim and veri
 
   assert.equal((await rpc("tools/call", { name: "verify_ledger", arguments: {} })).result.structuredContent.ok, true);
   assert.ok(readFileSync(join(home, "briefs", "brief.json"), "utf8").includes("disclosure"));
+});
+
+test("list_opportunities and get_calibration read what the owner's own runs produced, and never invent", async () => {
+  const { rpc, home } = make();
+  await rpc("initialize", {});
+  const none = await rpc("tools/call", { name: "list_opportunities", arguments: {} });
+  assert.equal(none.result.isError, true);
+  assert.match(none.result.content[0].text, /No scan has been run yet/);
+  const noneCal = await rpc("tools/call", { name: "get_calibration", arguments: {} });
+  assert.equal(noneCal.result.structuredContent.resolved, 0);
+  assert.match(noneCal.result.content[0].text, /No forecasts/);
+
+  mkdirSync(join(home, "opportunities"), { recursive: true });
+  writeFileSync(join(home, "opportunities", "opportunities.md"), "# Opportunities, 2026-09-30\n");
+  writeFileSync(join(home, "opportunities", "opportunities.json"), JSON.stringify({ date: "2026-09-30", cards: [] }));
+  const got = await rpc("tools/call", { name: "list_opportunities", arguments: {} });
+  assert.equal(got.result.isError, false);
+  assert.match(got.result.content[0].text, /# Opportunities/);
+  assert.equal(got.result.structuredContent.date, "2026-09-30");
+
+  const cal = new CalibrationLedger(join(home, "calibration.db"), () => new Date("2026-01-01T09:00:00Z"));
+  cal.register({ claim: "X keeps its margin above 20%", probability: 0.7, resolvesOn: "2026-06-30", resolutionSource: "Form 10-K, operating income" });
+  cal.close();
+  const c = await rpc("tools/call", { name: "get_calibration", arguments: {} });
+  assert.equal(c.result.structuredContent.open, 1);
+  assert.equal(c.result.structuredContent.brier, undefined, "no accuracy figure below the sample floor");
+  assert.match(c.result.content[0].text, /sample floor/);
 });
 
 test("get_latest_brief before any run says so instead of inventing content", async () => {

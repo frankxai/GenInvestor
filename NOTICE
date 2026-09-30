@@ -9,6 +9,10 @@ Data attribution
   policy with attribution. The files in packages/core/test/fixtures/ecb are unmodified API responses kept
   as test fixtures.
 
+- Snowflake, Inc. annual financial data (packages/core/test/fixtures/sec/snow_facts.trimmed.json): a
+  trimmed copy of the SEC EDGAR company-facts response for CIK 1640147, obtained from the test fixtures
+  of edgartools (MIT, https://github.com/dgunning/edgartools). SEC EDGAR data is public.
+
 Acknowledgements
 GenInvestor's design was informed by the following projects. No code from them is included in this
 repository. If code is added later, this file will list it with its licence.

@@ -142,6 +142,27 @@ test("the provider passes the cutoff through and stamps it on the datum", async 
   assert.equal(datum.payload.knownAsOf, "2024-06-01");
 });
 
+test("the offline file source reads recorded facts, honours the cutoff, and never leaks a path", async () => {
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { FileSecSource } = await import("../src/sec.ts");
+  const dir = mkdtempSync(join(tmpdir(), "facts-"));
+  writeFileSync(join(dir, "SNOW.json"), JSON.stringify(snow));
+  const src = new FileSecSource(dir, () => new Date("2026-09-30T00:00:00Z"));
+  const r = await src.fetchFundamentals("snow");
+  assert.equal(r.ok, true);
+  const d = (r as { datum: { provider: string; url: string; asOf: string; retrievedAt: string } }).datum;
+  assert.equal(d.provider, "sec-edgar-file");
+  assert.equal(d.url, "file:SNOW.json", "the folder is not recorded in the evidence");
+  assert.equal(d.asOf, "2025-01-31");
+  const early = await src.fetchFundamentals("SNOW", undefined, "2021-03-30");
+  assert.equal(early.ok, false);
+  assert.match((early as { reason: string }).reason, /had been filed by 2021-03-30/);
+  assert.match(((await src.fetchFundamentals("NOPE")) as { reason: string }).reason, /no readable NOPE.json/);
+  assert.match(((await src.fetchFundamentals("../../etc/passwd")) as { reason: string }).reason, /not a valid ticker/);
+});
+
 test("the provider refuses to run without a contact identity", () => {
   assert.throws(() => new SecProvider({ identity: "" }), /contact identity/);
   assert.throws(() => new SecProvider({ identity: "just a name" }), /contact identity/);

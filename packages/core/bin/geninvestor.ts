@@ -4,7 +4,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import {
-  CalibrationLedger, EcbProvider, ECB_SERIES, EvidenceLedger, evaluate, EXAMPLE_MANDATE, loadMandate, loadPolicyTable, RulesSkeptic,
+  CalibrationLedger, EcbProvider, ECB_SERIES, EvidenceLedger, evaluate, EXAMPLE_MANDATE, FileSecSource, loadMandate, loadPolicyTable, RulesSkeptic,
   RulesVerifier, runWorkflow, SCOUT_RECOMPUTE, scoutWorkflow, SecProvider, TemplateAnalyst, todayWorkflow, WorkflowStore,
 } from "../src/index.ts";
 import type { Thesis } from "../src/index.ts";
@@ -37,7 +37,8 @@ function usage(): never {
   calls resolve <id> --outcome 1|0 [--note TEXT]
 
   --home DIR   where the ledger lives (default ./.geninvestor)
-  scout needs GENINVESTOR_SEC_IDENTITY="Your Name your@email" (the SEC requires a contact on every request)
+  scout needs GENINVESTOR_SEC_IDENTITY="Your Name your@email" (the SEC requires a contact on every request),
+  or --facts-dir DIR to read recorded company-facts files (<TICKER>.json) offline with no identity
 Information, not advice. Ceiling: simulation only.`);
   process.exit(command ? 2 : 0);
 }
@@ -115,13 +116,18 @@ async function main() {
       process.exit(1);
     }
     for (const w of m.warnings) console.log(`note: ${w}`);
-    const identity = process.env.GENINVESTOR_SEC_IDENTITY ?? "";
-    let sec: SecProvider;
-    try {
-      sec = new SecProvider({ identity });
-    } catch (error) {
-      console.error(error instanceof Error ? error.message : error);
-      process.exit(1);
+    const factsDir = flag("facts-dir");
+    let sec: SecProvider | FileSecSource;
+    if (factsDir) {
+      console.log(`offline run: reading recorded company-facts files from ${factsDir}. No network, no SEC identity.`);
+      sec = new FileSecSource(factsDir);
+    } else {
+      try {
+        sec = new SecProvider({ identity: process.env.GENINVESTOR_SEC_IDENTITY ?? "" });
+      } catch (error) {
+        console.error(error instanceof Error ? error.message : error);
+        process.exit(1);
+      }
     }
     const asOf = flag("as-of");
     if (asOf !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(asOf)) {

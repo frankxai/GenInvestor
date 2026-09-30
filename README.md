@@ -51,6 +51,8 @@ node packages/core/bin/geninvestor.ts scout --mandate mandate.json
 node packages/core/bin/geninvestor.ts scout --mandate mandate.json --as-of 2024-06-01   # as it would have run then
 ```
 
+No SEC contact yet, or you want an exactly reproducible run? Put recorded company-facts responses in a folder as `<TICKER>.json` and add `--facts-dir DIR`: no network and no identity needed. The test suite runs the real command line this way.
+
 `--as-of` is point-in-time: only filings that were public on that date are used, and where a year was later restated, the version people could actually see then wins. A historical screen that quietly uses today's data is worthless, so this is tested on real filings (Snowflake's), including the day-of-filing boundary.
 
 - **Candidates, never recommendations.** The card schema has no field for a buy, a price target, a position size or a probability, and a test enforces it.
@@ -102,7 +104,7 @@ Tools: `run_today`, `get_latest_brief`, `list_opportunities`, `get_calibration`,
 | Data is displayed only where its licence allows | Each datum has a licence class; simulation-only and restricted data are refused in hosted and public contexts |
 | The safety tests can fail | The suite sabotages the gate in both directions and requires the shared cases to catch it |
 
-Tested: 139 TypeScript tests and 90 Python tests, plus opt-in live tests against the ECB and SEC APIs. CI runs on Linux with Node 24. The SEC parser is tested against real SEC data (Snowflake's filings) and hand-checked figures.
+Tested: 148 TypeScript tests (including the real command line, run end to end) and 90 Python tests, plus opt-in live tests against the ECB and SEC APIs. CI runs on Linux with Node 24. The SEC parser is tested against real SEC data (Snowflake's filings) and hand-checked figures.
 
 ## How it works
 

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type { Datum } from "./ledger.ts";
 import type { FetchLike } from "./providers.ts";
 
@@ -180,6 +181,46 @@ export const SEC_RECOMPUTE: Record<string, (payload: unknown) => number> = {
     return round2((a.val / b.val - 1) * 100);
   },
 };
+
+/**
+ * Reads recorded company-facts responses from a folder (`<TICKER>.json`, the shape the SEC returns).
+ * For trying the scout offline, for reproducing a run exactly, and for tests. No network, no identity.
+ */
+export class FileSecSource {
+  readonly name = "sec-edgar-file";
+  private readonly dir: string;
+  private readonly now: () => Date;
+
+  constructor(dir: string, now: () => Date = () => new Date()) {
+    this.dir = dir;
+    this.now = now;
+  }
+
+  async fetchFundamentals(ticker: string, _cik?: string, asOf?: string): Promise<{ ok: true; datum: Datum } | { ok: false; reason: string }> {
+    if (!/^[A-Za-z0-9.\-]{1,10}$/.test(ticker)) return { ok: false, reason: "not a valid ticker" };
+    const file = `${this.dir.replace(/[\\/]+$/, "")}/${ticker.toUpperCase()}.json`;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(readFileSync(file, "utf8"));
+    } catch {
+      return { ok: false, reason: `no readable ${ticker.toUpperCase()}.json in the facts folder` };
+    }
+    const extraction = extractPayload(raw, ticker, { asOf });
+    if (!extraction.ok) return extraction;
+    return {
+      ok: true,
+      datum: {
+        provider: this.name,
+        url: `file:${ticker.toUpperCase()}.json`,
+        asOf: metricsOf(extraction.payload).fiscalYearEnd,
+        retrievedAt: this.now().toISOString(),
+        licenceClass: "public",
+        delayedBySeconds: 0,
+        payload: extraction.payload,
+      },
+    };
+  }
+}
 
 export interface SecOptions {
   identity: string;

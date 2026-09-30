@@ -107,6 +107,14 @@ Planned, in this order. None of it is built.
 6. **A model-written analyst** behind the existing interface, with a cross-provider verifier and replay logs.
 7. **A dashboard** with an evidence drawer on every figure.
 
+## The GenInvestor network
+
+- **[geninvestor-skills](https://github.com/frankxai/geninvestor-skills):** four installable agent skills (thesis tracking, source checks, opportunity screens, calibration logs) for any assistant. `npx skills add frankxai/geninvestor-skills`.
+- **[awesome-investor-agent-skills](https://github.com/frankxai/awesome-investor-agent-skills):** a catalogue of investing agent tools and standards, with a weekly research loop that flags licence traps.
+- **Learning materials:** planned. Open curriculum first; nothing to join yet.
+
+Read the [MANIFESTO](MANIFESTO.md) for what we are trying to build, and [BRAND.md](BRAND.md) for how to refer to the project.
+
 ## Contributing and security
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). The ground rules are few and enforced by tests: every number needs evidence, no advice, the gate exists once, rates are percentage points, and no new runtime dependency without a written reason.
@@ -114,3 +122,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). The groun
 ## Licence
 
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). Data from the ECB is used under its reuse policy with attribution.
+
+GenInvestor is an independent open-source project and is not affiliated with any company of a similar name. See [BRAND.md](BRAND.md).

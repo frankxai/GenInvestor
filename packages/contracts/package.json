@@ -1,0 +1,14 @@
+{
+  "name": "@geninvestor/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Versioned contracts shared by every language and surface: the autonomy gate table with its guardrail cases, and JSON Schemas for data, claims and the published brief.",
+  "exports": {
+    "./validate": "./src/validate.ts",
+    "./policy": "./policy/policy.json"
+  },
+  "scripts": {
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.ts\""
+  }
+}

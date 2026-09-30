@@ -1,0 +1,22 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+node_modules/
+.next/
+.env
+.env.*
+.cache/
+
+# GenInvestor local state: the ledger, checkpoints and briefs live on your machine, never in git.
+.geninvestor/
+*.db
+*.db-journal
+
+# Real holdings, statements and account exports never enter this repository.
+private/
+*.holdings.json
+*-real.json
+statements/

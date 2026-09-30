@@ -1,0 +1,14 @@
+{
+  "name": "@geninvestor/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Evidence ledger, claims audit, autonomy gate, workflow graph and the daily brief. Zero dependencies; runs on Node 24 with built-in type stripping and node:sqlite.",
+  "bin": { "geninvestor": "./bin/geninvestor.ts" },
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.ts\"",
+    "test:live": "GENINVESTOR_LIVE=1 node --disable-warning=ExperimentalWarning --test \"test/*.test.ts\"",
+    "today": "node --disable-warning=ExperimentalWarning bin/geninvestor.ts today"
+  }
+}

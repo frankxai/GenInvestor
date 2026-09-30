@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://geninvestor.dev/schemas/brief.schema.json",
+  "title": "Published daily brief (brief.json)",
+  "description": "The machine-readable twin of brief.md. Every line names the claims behind it, and the disclosure travels with the data.",
+  "type": "object",
+  "required": ["date", "lines", "statuses", "stale", "sources", "disclosure"],
+  "additionalProperties": false,
+  "properties": {
+    "date": { "type": "string", "minLength": 4 },
+    "lines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["text", "claimIds"],
+        "additionalProperties": false,
+        "properties": {
+          "text": { "type": "string", "minLength": 1 },
+          "claimIds": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "statuses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "claim", "status", "reasons"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "claim": { "type": "string" },
+          "status": { "enum": ["intact", "watch", "broken"] },
+          "reasons": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "stale": { "type": "array", "items": { "type": "string" } },
+    "sources": { "type": "array", "items": { "type": "string" } },
+    "disclosure": { "type": "string", "minLength": 40 }
+  }
+}

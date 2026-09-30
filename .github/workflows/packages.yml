@@ -1,0 +1,64 @@
+name: packages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "packages/**"
+      - "engine/**"
+      - "package.json"
+      - ".github/workflows/packages.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Contracts, core and MCP tests (no install step, no dependencies)
+        run: npm test
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Lint
+        run: uv run --directory engine --extra dev ruff check src tests
+      - name: Tests, including the policy-contract drift check
+        run: uv run --directory engine --extra dev pytest -q
+      - name: Autonomy ceiling is intact
+        # A direct assertion that the safety gate has not been widened. It gets its own step so a
+        # change to the ceiling shows up as its own red check, not inside a wall of test output.
+        run: |
+          uv run --directory engine python -c "
+          from investor_engine import policy
+          assert policy.ENGINE_CEILING is policy.Mode.L2_SIMULATION, 'autonomy ceiling changed'
+          for action in ('live_trade', 'transfer', 'wallet_sign', 'draft_order', 'real_autonomous_execution', 'store_private_key'):
+              d = policy.evaluate(policy.Action(action_type=action))
+              assert not d.allowed, f'{action} became reachable: {d.verdict}'
+          print('ceiling intact:', policy.ENGINE_CEILING.value)
+          "
+
+  gate-parity:
+    # The autonomy gate exists in two languages. Both must pass the same cases, and the committed
+    # contract file must match what the Python engine exports today.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: astral-sh/setup-uv@v5
+      - name: Export the contract from Python and compare with the committed file
+        run: |
+          uv run --directory engine investor policy-export --out "$RUNNER_TEMP/policy.json"
+          node -e "const a=JSON.parse(require('fs').readFileSync('packages/contracts/policy/policy.json','utf8'));const b=JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP+'/policy.json','utf8'));if(JSON.stringify(a)!==JSON.stringify(b)){console.error('policy.json is stale');process.exit(1)}"
+      - name: TypeScript gate passes every shared case
+        run: node --disable-warning=ExperimentalWarning --test packages/core/test/policy.test.ts

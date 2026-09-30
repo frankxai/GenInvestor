@@ -1,0 +1,20 @@
+GenInvestor
+Copyright 2026 GenInvestor contributors
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Data attribution
+- Euro foreign exchange reference rates, the euro short-term rate, HICP inflation and ECB key interest
+  rates: European Central Bank, ECB Data Portal (https://data.ecb.europa.eu), used under the ECB's reuse
+  policy with attribution. The files in packages/core/test/fixtures/ecb are unmodified API responses kept
+  as test fixtures.
+
+Acknowledgements
+GenInvestor's design was informed by the following projects. No code from them is included in this
+repository. If code is added later, this file will list it with its licence.
+- FinRobot (Apache-2.0): the rule that code computes numbers and language models only narrate.
+- TraderHarness (Apache-2.0): treating historical contamination as an environment boundary.
+- anthropics/financial-services (Apache-2.0): the skill and plugin layout.
+- edgartools (MIT): the planned SEC filings integration.
+- TradingAgents (Apache-2.0) and ai-hedge-fund (MIT): agent roles and structured outputs.
+- Model Context Protocol and its MCP Apps extension (MIT).

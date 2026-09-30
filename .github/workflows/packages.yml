@@ -15,20 +15,27 @@ permissions:
 
 jobs:
   node:
-    runs-on: ubuntu-latest
+    # The README says Node 22.18 or newer, on any platform. This job is what makes that a tested claim.
+    name: node ${{ matrix.node }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest, windows-latest]
+        node: ["22.18", "24"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: "24"
+          node-version: ${{ matrix.node }}
       - name: Contracts, core and MCP tests (no install step, no dependencies)
         run: npm test
 
   python:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
       - name: Lint
         run: uv run --directory engine --extra dev ruff check src tests
       - name: Tests, including the policy-contract drift check
@@ -49,13 +56,13 @@ jobs:
   gate-parity:
     # The autonomy gate exists in two languages. Both must pass the same cases, and the committed
     # contract file must match what the Python engine exports today.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "24"
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v10.2.0
       - name: Export the contract from Python and compare with the committed file
         run: |
           uv run --directory engine investor policy-export --out "$RUNNER_TEMP/policy.json"

@@ -57,7 +57,7 @@ export interface ScreenRecord {
 }
 
 export interface FundamentalsSource {
-  fetchFundamentals(ticker: string, cik?: string): Promise<{ ok: true; datum: Datum } | { ok: false; reason: string }>;
+  fetchFundamentals(ticker: string, cik?: string, asOf?: string): Promise<{ ok: true; datum: Datum } | { ok: false; reason: string }>;
 }
 
 export interface CardWriter {
@@ -83,6 +83,8 @@ export interface ScoutContext {
   displayContext: DisplayContext;
   outDir?: string;
   now?: () => Date;
+  /** Run the screen as it would have run on this date (YYYY-MM-DD): only filings public by then are used. */
+  asOf?: string;
 }
 
 /** Extra recompute functions the skeptic needs; registered alongside the SEC ones. */
@@ -116,6 +118,22 @@ function addOneYear(date: string): string {
 
 function addDays(date: string, n: number): string {
   return new Date(Date.parse(`${date}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * The first annual report that has not been filed yet, and a date by which it should be public
+ * (fiscal year end plus 90 days, the outer limit of the SEC filing deadlines). Rolls forward when the
+ * latest filing is old, so the suggested call is always in the future and can be registered.
+ */
+export function nextReportWindow(fiscalYearEnd: string, now: Date): { nextEnd: string; resolvesOn: string } {
+  const today = now.toISOString().slice(0, 10);
+  let nextEnd = addOneYear(fiscalYearEnd);
+  let resolvesOn = addDays(nextEnd, 90);
+  while (resolvesOn <= today) {
+    nextEnd = addOneYear(nextEnd);
+    resolvesOn = addDays(nextEnd, 90);
+  }
+  return { nextEnd, resolvesOn };
 }
 
 /** Claims for one candidate. Every figure on a card comes from one of these, and each is audited. */
@@ -206,7 +224,7 @@ export function scoutWorkflow(): Workflow<ScoutContext> {
         if (held.has(w.ticker)) { out.skippedHeld++; continue; }
         if (excludedTickers.has(w.ticker)) { out.skippedExcluded++; continue; }
         try {
-          const r = await ctx.sec.fetchFundamentals(w.ticker, w.cik);
+          const r = await ctx.sec.fetchFundamentals(w.ticker, w.cik, ctx.asOf);
           if (!r.ok) { out.noData.push({ ticker: w.ticker, reason: r.reason }); continue; }
           const name = (r.datum.payload as SecPayload).name.toLowerCase();
           if (keywords.some((k) => name.includes(k))) { out.skippedExcluded++; continue; }
@@ -256,7 +274,7 @@ export function scoutWorkflow(): Workflow<ScoutContext> {
           if (style === "quality") proveWrong.push({ text: "This case is also wrong if revenue starts to shrink year on year", claimIds: [] });
           if (style === "growth") proveWrong.push({ text: "This case is also wrong if the company stops being profitable at the operating level", claimIds: [] });
 
-          const nextEnd = addOneYear(metrics.fiscalYearEnd);
+          const { nextEnd, resolvesOn } = nextReportWindow(metrics.fiscalYearEnd, (ctx.now ?? (() => new Date()))());
           const checkedMeasure = style === "quality" ? `operating margin at or above ${t.minOperatingMarginPct}%` : `revenue growth at or above ${t.minRevenueGrowthPct}%`;
           const card: Card = {
             ticker,
@@ -281,7 +299,7 @@ export function scoutWorkflow(): Workflow<ScoutContext> {
             ],
             suggestedCall: {
               claim: `${ticker}: ${checkedMeasure} in the annual report for the fiscal year ending ${nextEnd}`,
-              resolvesOn: addDays(metrics.filedAt, 400),
+              resolvesOn,
               resolutionSource: `Form 10-K for the fiscal year ending ${nextEnd}, on SEC EDGAR`,
               note: "The probability is yours to set. This tool never suggests one.",
             },

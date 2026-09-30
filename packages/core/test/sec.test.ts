@@ -82,6 +82,66 @@ test("negative equity is flagged and leverage is not computed from it", () => {
   assert.throws(() => SEC_RECOMPUTE.liabilities_to_equity?.(p), /no usable balance sheet/);
 });
 
+const growth = (a: number, b: number) => Math.round((a / b - 1) * 10000) / 100;
+const pit = (asOf: string) => extractPayload(snow, "SNOW", { asOf });
+
+test("point in time, on real data: each date sees only the annual reports public on that date", () => {
+  const at = (asOf: string) => (pit(asOf) as { payload: SecPayload }).payload;
+  const m2023 = metricsOf(at("2023-06-01"));
+  assert.equal(m2023.fiscalYearEnd, "2023-01-31");
+  assert.equal(m2023.filedAt, "2023-03-29");
+  assert.equal(m2023.revenueGrowthPct, growth(2065659000, 1219327000));
+  const m2024 = metricsOf(at("2024-06-01"));
+  assert.equal(m2024.fiscalYearEnd, "2024-01-31");
+  assert.equal(m2024.revenueGrowthPct, growth(2806489000, 2065659000));
+  assert.equal(metricsOf(at("2026-01-01")).revenueGrowthPct, 29.21, "today sees the latest report");
+});
+
+test("point in time: nothing filed after the cutoff can appear anywhere in the payload", () => {
+  for (const asOf of ["2021-03-31", "2022-06-01", "2023-06-01", "2024-06-01", "2025-03-20", "2025-03-21"]) {
+    const p = (pit(asOf) as { payload: SecPayload }).payload;
+    const all = [p.revenue, p.operatingIncome, p.netIncome, p.liabilities, p.equity].flat();
+    assert.ok(all.length > 0);
+    for (const pt of all) assert.ok(pt.filed <= asOf, `${pt.end} filed ${pt.filed} leaked into a screen as of ${asOf}`);
+    assert.equal(p.knownAsOf, asOf, "the cutoff is recorded in the evidence");
+  }
+  assert.equal((extractPayload(snow, "SNOW") as { payload: SecPayload }).payload.knownAsOf, undefined, "no cutoff, no marker");
+});
+
+test("point in time: the cutoff is inclusive, and before the first usable filing there is nothing to screen", () => {
+  assert.equal(pit("2021-03-30").ok, false, "the first filing in this data is dated 2021-03-31");
+  assert.match((pit("2021-03-30") as { reason: string }).reason, /had been filed by 2021-03-30/);
+  assert.equal(pit("2021-03-31").ok, true, "filed on the cutoff date counts as public");
+  assert.equal(pit("2015-01-01").ok, false);
+});
+
+test("point in time: a later restatement is invisible before it was filed, and wins after", () => {
+  const facts = (rows: unknown[]) => ({ cik: 7, entityName: "RESTATECO", facts: { "us-gaap": { Revenues: { units: { USD: rows } } } } });
+  const row = (end: string, val: number, filed: string) => ({ start: `${Number(end.slice(0, 4))}-01-01`, end, val, form: "10-K", fp: "FY", filed });
+  const raw = facts([
+    row("2022-12-31", 90, "2023-02-15"),
+    row("2023-12-31", 100, "2024-02-15"), // as first reported
+    row("2023-12-31", 110, "2025-02-15"), // restated in the next annual report
+    row("2024-12-31", 120, "2025-02-15"),
+  ]);
+  const before = metricsOf((extractPayload(raw, "R", { asOf: "2024-06-01" }) as { payload: SecPayload }).payload);
+  assert.equal(before.revenue, 100, "the figure that was public on 2024-06-01");
+  assert.equal(before.revenueGrowthPct, growth(100, 90));
+  const after = metricsOf((extractPayload(raw, "R", { asOf: "2025-06-01" }) as { payload: SecPayload }).payload);
+  assert.equal(after.revenue, 120);
+  assert.equal(after.priorRevenue, 110, "the restated prior year, now public");
+  const undated = metricsOf((extractPayload(raw, "R") as { payload: SecPayload }).payload);
+  assert.equal(undated.priorRevenue, 110);
+});
+
+test("the provider passes the cutoff through and stamps it on the datum", async () => {
+  const sec = new SecProvider({ identity: "a b@c.de", fetchImpl: fakeSec(), sleep: async () => {} });
+  const r = await sec.fetchFundamentals("SNOW", "1640147", "2024-06-01");
+  const datum = (r as { datum: { asOf: string; payload: SecPayload } }).datum;
+  assert.equal(datum.asOf, "2024-01-31");
+  assert.equal(datum.payload.knownAsOf, "2024-06-01");
+});
+
 test("the provider refuses to run without a contact identity", () => {
   assert.throws(() => new SecProvider({ identity: "" }), /contact identity/);
   assert.throws(() => new SecProvider({ identity: "just a name" }), /contact identity/);

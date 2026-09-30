@@ -22,6 +22,8 @@ export interface SecPayload {
   netIncome: FactPoint[];
   liabilities: FactPoint[]; // balance-sheet dates
   equity: FactPoint[];
+  /** Present when the payload was built point-in-time: nothing filed after this date is in it. */
+  knownAsOf?: string;
 }
 
 export interface Metrics {
@@ -79,20 +81,32 @@ function annualBalance(raw: RawFact[]): FactPoint[] {
   return dedupe(raw.filter((x) => /^10-K/.test(x.form) && !x.start));
 }
 
-export function extractPayload(raw: unknown, ticker: string): Extraction {
+export interface ExtractOptions {
+  /**
+   * Point-in-time cutoff (YYYY-MM-DD). Only facts filed on or before this date are used, and where a
+   * fiscal year was later restated, the version that was public on that date wins. Without it, a
+   * historical screen would quietly use information nobody had yet.
+   */
+  asOf?: string;
+}
+
+export function extractPayload(raw: unknown, ticker: string, options: ExtractOptions = {}): Extraction {
   const r = raw as RawFacts;
   if (!r?.facts?.["us-gaap"]) return { ok: false, reason: "no US-GAAP data (foreign filer, or a company that does not report XBRL financials)" };
+  const known = (rows: RawFact[]) => (options.asOf ? rows.filter((x) => x.filed <= (options.asOf as string)) : rows);
   let revenueTag = "";
   let revenue: FactPoint[] = [];
   for (const tag of REVENUE_TAGS) {
-    const pts = annualFlow(usd(r, tag));
+    const pts = annualFlow(known(usd(r, tag)));
     if (pts.length >= 2) {
       revenueTag = tag;
       revenue = pts;
       break;
     }
   }
-  if (revenue.length < 2) return { ok: false, reason: "fewer than two annual revenue figures in 10-K filings" };
+  if (revenue.length < 2) {
+    return { ok: false, reason: options.asOf ? `fewer than two annual revenue figures had been filed by ${options.asOf}` : "fewer than two annual revenue figures in 10-K filings" };
+  }
   return {
     ok: true,
     payload: {
@@ -101,10 +115,11 @@ export function extractPayload(raw: unknown, ticker: string): Extraction {
       name: r.entityName ?? ticker,
       revenueTag,
       revenue,
-      operatingIncome: annualFlow(usd(r, "OperatingIncomeLoss")),
-      netIncome: annualFlow(usd(r, "NetIncomeLoss")),
-      liabilities: annualBalance(usd(r, "Liabilities")),
-      equity: annualBalance(usd(r, "StockholdersEquity")),
+      operatingIncome: annualFlow(known(usd(r, "OperatingIncomeLoss"))),
+      netIncome: annualFlow(known(usd(r, "NetIncomeLoss"))),
+      liabilities: annualBalance(known(usd(r, "Liabilities"))),
+      equity: annualBalance(known(usd(r, "StockholdersEquity"))),
+      ...(options.asOf ? { knownAsOf: options.asOf } : {}),
     },
   };
 }
@@ -221,10 +236,10 @@ export class SecProvider {
   }
 
   /** Returns a Datum, or a reason the company cannot be screened. */
-  async fetchFundamentals(ticker: string, cikHint?: string): Promise<{ ok: true; datum: Datum } | { ok: false; reason: string }> {
+  async fetchFundamentals(ticker: string, cikHint?: string, asOf?: string): Promise<{ ok: true; datum: Datum } | { ok: false; reason: string }> {
     const cik = await this.cikFor(ticker, cikHint);
     const url = `https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`;
-    const extraction = extractPayload(await this.get(url), ticker);
+    const extraction = extractPayload(await this.get(url), ticker, { asOf });
     if (!extraction.ok) return extraction;
     const m = metricsOf(extraction.payload);
     return {

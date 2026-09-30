@@ -21,6 +21,7 @@ export type FindingCode =
   | "QUOTE_MISMATCH"
   | "RECOMPUTE_MISMATCH"
   | "LINK_VALUE_NOT_STATED"
+  | "CITATION_NOT_SUPPORTING"
   | "DISPLAY_BLOCKED";
 
 export interface Finding {
@@ -48,8 +49,14 @@ export function numbersIn(text: string): number[] {
   return (text.replace(ISO_DATE, " ").match(NUMBER) ?? []).map((t) => Number(t.replace(/,/g, "")));
 }
 
+/**
+ * Equality for numbers that came from the same source. The floor absorbs floating-point noise only:
+ * the allowance grows with magnitude by one part in 10^12, so on a figure of a billion dollars a
+ * difference of a single dollar is still a difference. (It once scaled by 10^-9, which let a
+ * one-dollar change to a $1.2 billion figure through.)
+ */
 function close(a: number, b: number, tol: number): boolean {
-  return Math.abs(a - b) <= tol * Math.max(1, Math.abs(a), Math.abs(b));
+  return Math.abs(a - b) <= Math.max(tol, tol * 1e-3 * Math.max(Math.abs(a), Math.abs(b)));
 }
 
 /**
@@ -131,6 +138,15 @@ export function claimsAudit(brief: Brief, ledger: EvidenceLedger, options: Audit
       if (!claimNumbers.some((c) => close(c, n, tol))) {
         add("NUMBER_NOT_IN_CLAIMS", `${n} in "${line.text}" appears in none of its linked claims`);
       }
+    }
+
+    // A citation has to support the line. It does if the line is the claim's own text, or if the two
+    // share a figure. Without this, a line that contains no numbers could cite any claim at all.
+    const claimTexts = line.claimIds.map((id) => ledger.getClaim(id)?.text).filter((t): t is string => t !== undefined);
+    const verbatim = claimTexts.includes(line.text);
+    const anchored = lineNumbers.some((n) => claimNumbers.some((c) => close(c, n, tol)));
+    if (claimTexts.length > 0 && !verbatim && !anchored) {
+      add("CITATION_NOT_SUPPORTING", `"${line.text}" cites claims that do not state it and share no figure with it`);
     }
   });
 

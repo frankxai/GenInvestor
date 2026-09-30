@@ -84,8 +84,8 @@ test("quotes must match the source byte for byte", () => {
   const { ledger, source } = setup();
   const ok = ledger.addClaim({ text: "It is the Euro foreign exchange reference rate", kind: "fact", producedBy: "t", runId: "q1", links: [{ sourceId: source.id, kind: "quote", fieldOrQuote: "Euro foreign exchange reference rate" }] });
   const bad = ledger.addClaim({ text: "It is the euro foreign exchange reference rate", kind: "fact", producedBy: "t", runId: "q2", links: [{ sourceId: source.id, kind: "quote", fieldOrQuote: "euro foreign exchange reference rate" }] });
-  assert.equal(claimsAudit(brief([{ text: "x", claimIds: [ok.id] }]), ledger, { context: "local_user" }).passed, true);
-  assert.ok(claimsAudit(brief([{ text: "x", claimIds: [bad.id] }]), ledger, { context: "local_user" }).findings.some((f) => f.code === "QUOTE_MISMATCH"));
+  assert.equal(claimsAudit(brief([{ text: ok.text, claimIds: [ok.id] }]), ledger, { context: "local_user" }).passed, true);
+  assert.ok(claimsAudit(brief([{ text: bad.text, claimIds: [bad.id] }]), ledger, { context: "local_user" }).findings.some((f) => f.code === "QUOTE_MISMATCH"));
 });
 
 test("an unknown claim id is blocked", () => {
@@ -138,6 +138,29 @@ test("text-valued field links (such as a filing date) are compared as text", () 
   const bad = ledger.addClaim({ text: "The annual report was filed on 2025-03-22", kind: "fact", producedBy: "t", runId: "d2", links: [{ sourceId: s.id, kind: "field", fieldOrQuote: "filed", value: "2025-03-22" }] });
   assert.equal(claimsAudit(brief([{ text: "The annual report was filed on 2025-03-21", claimIds: [ok.id] }]), ledger, { context: "local_user" }).passed, true);
   assert.ok(claimsAudit(brief([{ text: "The annual report was filed on 2025-03-22", claimIds: [bad.id] }]), ledger, { context: "local_user" }).findings.some((f) => f.code === "FIELD_MISMATCH"));
+});
+
+test("a citation must support the line: a number-free line cannot cite an unrelated claim", () => {
+  const { ledger, claim } = setup();
+  const unrelated = claimsAudit(brief([{ text: "Management is confident about the outlook.", claimIds: [claim.id] }]), ledger, { context: "local_user" });
+  assert.ok(unrelated.findings.some((f) => f.code === "CITATION_NOT_SUPPORTING"));
+  // supported two ways: the claim's own words, or a shared figure
+  assert.equal(claimsAudit(brief([{ text: claim.text, claimIds: [claim.id] }]), ledger, { context: "local_user", recompute: { pct_change: () => 0.3 } }).passed, true);
+  assert.equal(claimsAudit(brief([{ text: "That is a move of 0.3% in one day.", claimIds: [claim.id] }]), ledger, { context: "local_user", recompute: { pct_change: () => 0.3 } }).passed, true);
+  assert.equal(claimsAudit(brief([{ text: "Nothing to cite here." , claimIds: [] }]), ledger, { context: "local_user" }).passed, true, "a line with no citation and no figure is just prose");
+});
+
+test("figures are compared exactly: one dollar on a billion is a difference", () => {
+  const ledger = new EvidenceLedger();
+  const s = ledger.addSource({ provider: "p", url: "u://x", asOf: "2026-01-01", retrievedAt: "2026-01-02T00:00:00Z", licenceClass: "public", delayedBySeconds: 0, payload: { revenue: 1_200_000_000 } });
+  const exact = ledger.addClaim({ text: "Revenue was 1,200,000,000 USD", kind: "fact", producedBy: "t", runId: "e", links: [{ sourceId: s.id, kind: "field", fieldOrQuote: "revenue", value: 1_200_000_000 }] });
+  const off = ledger.addClaim({ text: "Revenue was 1,200,000,001 USD", kind: "fact", producedBy: "t", runId: "o", links: [{ sourceId: s.id, kind: "field", fieldOrQuote: "revenue", value: 1_200_000_001 }] });
+  assert.equal(claimsAudit(brief([{ text: exact.text, claimIds: [exact.id] }]), ledger, { context: "local_user" }).passed, true);
+  const r = claimsAudit(brief([{ text: off.text, claimIds: [off.id] }]), ledger, { context: "local_user" });
+  assert.ok(r.findings.some((f) => f.code === "FIELD_MISMATCH"));
+  // floating-point noise from a division is not a difference
+  const noisy = ledger.addClaim({ text: "Growth was 29.21%", kind: "fact", producedBy: "t", runId: "n", links: [{ sourceId: s.id, kind: "computed", fieldOrQuote: "g", value: 29.21 }] });
+  assert.equal(claimsAudit(brief([{ text: noisy.text, claimIds: [noisy.id] }]), ledger, { context: "local_user", recompute: { g: () => 29.209999999999997 } }).passed, true);
 });
 
 test("dates are not treated as numbers that need evidence", () => {

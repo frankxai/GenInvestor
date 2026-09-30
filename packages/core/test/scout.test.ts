@@ -46,12 +46,12 @@ class FakeSec implements FundamentalsSource {
   constructor(data: Record<string, unknown>) {
     this.data = data;
   }
-  async fetchFundamentals(ticker: string) {
+  async fetchFundamentals(ticker: string, _cik?: string, asOf?: string) {
     this.calls.push(ticker);
     const r = this.data[ticker];
     if (r instanceof Error) throw r;
     if (!r) return { ok: false as const, reason: "not in the fixture" };
-    const e = extractPayload(r, ticker);
+    const e = extractPayload(r, ticker, { asOf });
     if (!e.ok) return e;
     return { ok: true as const, datum: { provider: "sec-edgar", url: `fixture://sec/${ticker}`, asOf: metricsOf(e.payload).fiscalYearEnd, retrievedAt: "2026-09-30T06:00:00.000Z", licenceClass: "public" as const, delayedBySeconds: 0, payload: e.payload } };
   }
@@ -240,6 +240,71 @@ test("no output contains action or hype language", async () => {
     assert.match(md, /not recommendations/);
     assert.match(md, /Information, not advice/);
   }
+});
+
+test("a historical run sees only what was public then: the same company passes, or not, depending on the date", async () => {
+  // Margin was 30% in FY2023 and 12% in FY2024 (filed 2025-02-15). The FY2024 report cannot influence a 2024 screen.
+  const FADING = raw(31, "FADINGCO INC", [
+    { year: 2024, rev: 1_050_000_000, op: 126_000_000, liab: 300_000_000, eq: 500_000_000 },
+    { year: 2023, rev: 1_000_000_000, op: 300_000_000, liab: 300_000_000, eq: 480_000_000 },
+    { year: 2022, rev: 900_000_000, op: 250_000_000, liab: 300_000_000, eq: 460_000_000 },
+  ]);
+  const m = mandate({ watchlist: [{ ticker: "FADING" }] });
+  const then = await run(ctx({ FADING }, m, { asOf: "2024-06-01", now: () => new Date("2024-06-01T12:00:00Z") }));
+  const cardThen = out(then).json.cards[0] as Card;
+  assert.ok(cardThen, "on 2024-06-01 the latest public report shows a 30% margin, so it passes");
+  assert.ok(cardThen.whyPassed.some((l) => /operating margin was 30%/.test(l.text)));
+  assert.equal(cardThen.asOf, "2023-12-31");
+  assert.match(cardThen.suggestedCall.claim, /fiscal year ending 2024-12-31/);
+  const now = await run(ctx({ FADING }, m, { asOf: "2025-06-01", now: () => new Date("2025-06-01T12:00:00Z") }), "later");
+  assert.equal(out(now).json.cards.length, 0, "on 2025-06-01 the FY2024 report is public: margin 12% fails the 20% line");
+  // the evidence itself records the cutoff
+  const c = ctx({ FADING }, m, { asOf: "2024-06-01", now: () => new Date("2024-06-01T12:00:00Z") });
+  await run(c, "evidence");
+  const row = c.ledger.db.prepare("SELECT payload FROM sources WHERE provider = 'sec-edgar'").get() as { payload: string };
+  assert.equal(JSON.parse(row.payload).knownAsOf, "2024-06-01");
+});
+
+test("a real card can be masked for a model to read: no name, ticker or date survives, and every figure does", async () => {
+  const { Masker } = await import("../src/masking.ts");
+  const c = ctx({ STRONG }, mandate({ watchlist: [{ ticker: "STRONG" }] }));
+  const card = (out(await run(c)).json.cards[0]) as Card;
+  const m = new Masker({ seed: "run-7", today: "2026-09-30" });
+  m.register({ ticker: "STRONG", name: "STRONGCO INC" });
+  const masked = m.maskDeep(card);
+  const blob = JSON.stringify(masked);
+  assert.deepEqual(m.audit(blob), [], "the auditor finds nothing left to mask");
+  assert.ok(!/STRONGCO|STRONG\b|2025|2026|2027/.test(blob.replace(/ASSET-[0-9A-F]+/g, "")), blob.slice(0, 300));
+  const figures = (t: string) => t.match(/\d[\d,]*\.?\d*%?/g)?.filter((x) => x.length > 2) ?? [];
+  const original = JSON.stringify(card.whyPassed.map((l) => l.text)).replace(/\d{4}-\d{2}-\d{2}/g, " ");
+  const stated = figures(original).map((x) => x.replace(/,$/, "")).filter((x) => /,|%|\./.test(x));
+  assert.ok(stated.length >= 4, `figures under test: ${stated.join(" ")}`);
+  for (const f of stated) assert.ok(blob.includes(f), `figure ${f} survived masking`);
+  assert.equal(masked.score, card.score);
+  assert.deepEqual(masked.whyPassed.map((l) => l.claimIds), card.whyPassed.map((l) => l.claimIds));
+  assert.equal(m.unmask(masked.name), "STRONGCO INC");
+});
+
+test("the suggested call always names an annual report that has not been filed yet, and the calibration ledger accepts it", async () => {
+  const { CalibrationLedger } = await import("../src/calibration.ts");
+  const { nextReportWindow } = await import("../src/scout.ts");
+  assert.deepEqual(nextReportWindow("2025-12-31", new Date("2026-09-30T00:00:00Z")), { nextEnd: "2026-12-31", resolvesOn: "2027-03-31" });
+  assert.deepEqual(nextReportWindow("2022-01-31", new Date("2026-09-30T00:00:00Z")), { nextEnd: "2027-01-31", resolvesOn: "2027-05-01" }, "an old latest filing rolls forward past today");
+  assert.deepEqual(nextReportWindow("2025-09-30", new Date("2026-09-30T00:00:00Z")), { nextEnd: "2026-09-30", resolvesOn: "2026-12-29" }, "the report for the year that just ended is still ahead");
+
+  // an old filing, screened today: the suggested call must still be registrable
+  const OLD = raw(21, "OLDCO INC", [
+    { year: 2022, rev: 1_100_000_000, op: 330_000_000, liab: 300_000_000, eq: 500_000_000 },
+    { year: 2021, rev: 1_000_000_000, op: 300_000_000, liab: 300_000_000, eq: 480_000_000 },
+    { year: 2020, rev: 900_000_000, op: 260_000_000, liab: 300_000_000, eq: 460_000_000 },
+  ]);
+  const now = new Date("2026-09-30T06:00:00Z");
+  const card = (out(await run(ctx({ OLD }, mandate({ watchlist: [{ ticker: "OLD" }] })))).json.cards[0]) as Card;
+  const cal = new CalibrationLedger(":memory:", () => now);
+  const registered = cal.register({ claim: card.suggestedCall.claim, probability: 0.7, resolvesOn: card.suggestedCall.resolvesOn, resolutionSource: card.suggestedCall.resolutionSource });
+  assert.equal(registered.resolvesOn, card.suggestedCall.resolvesOn, "accepted exactly as suggested");
+  assert.ok(card.suggestedCall.resolvesOn > "2026-09-30");
+  assert.match(card.suggestedCall.claim, /fiscal year ending 2026-12-31/);
 });
 
 test("the published json conforms to the opportunities contract, which has no place for a probability or an action", async () => {

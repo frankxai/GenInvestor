@@ -4,6 +4,7 @@ export * from "./contracts.ts";
 export * from "./graph.ts";
 export * from "./ledger.ts";
 export * from "./mandate.ts";
+export * from "./masking.ts";
 export * from "./policy.ts";
 export * from "./providers.ts";
 export * from "./scout.ts";

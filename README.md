@@ -48,7 +48,10 @@ node packages/core/bin/geninvestor.ts mandate example > mandate.json   # edit it
 node packages/core/bin/geninvestor.ts mandate check mandate.json
 export GENINVESTOR_SEC_IDENTITY="Your Name your@email"                 # the SEC requires a contact on every request
 node packages/core/bin/geninvestor.ts scout --mandate mandate.json
+node packages/core/bin/geninvestor.ts scout --mandate mandate.json --as-of 2024-06-01   # as it would have run then
 ```
+
+`--as-of` is point-in-time: only filings that were public on that date are used, and where a year was later restated, the version people could actually see then wins. A historical screen that quietly uses today's data is worthless, so this is tested on real filings (Snowflake's), including the day-of-filing boundary.
 
 - **Candidates, never recommendations.** The card schema has no field for a buy, a price target, a position size or a probability, and a test enforces it.
 - **Zero is a valid result.** A screen that finds nothing says so.
@@ -87,6 +90,11 @@ Tools: `run_today`, `get_latest_brief`, `list_opportunities`, `get_calibration`,
 | Old data is flagged, not trusted | Each series has an expected cadence; stale data is marked in the line and in a data-quality section, and a thesis that rests on it goes on watch instead of being judged |
 | Nothing moves money | One autonomy gate, capped at simulation. Its table and 35 adversarial cases live in `packages/contracts/policy/policy.json`; the Python and TypeScript gates must pass every case, and CI compares the file with what the engine exports |
 | A claim states the value it cites | The audit also blocks a claim that links a field or a computed value its own text does not state, so text and evidence cannot drift apart |
+| A citation supports its line | A line must be its claim's own words or share a figure with it, so a sentence with no numbers cannot cite an unrelated claim |
+| Figures are compared exactly | One dollar on a billion is a difference. Floating-point noise is not |
+| The checks are measured, not assumed | A planted-error corpus runs in CI over real cards and briefs: 124 corrupted numbers, 85 tampered evidence links (caught by the audit and, separately, by an independent verifier), 6 tampered sources, 39 missing, invented or borrowed citations and 8 fabricated quotations. All are caught, and clean output raises zero false alarms. Building the corpus found two real holes in the audit, both now fixed |
+| Historical runs see only what was public then | `scout --as-of DATE` filters every filing by the date it was filed and picks the restatement that existed then |
+| Model readers cannot lean on memory | A masking module gives companies and tickers stable pseudonyms, turns dates into offsets (`D-243`, `Y-1`) and leaves figures alone; an auditor scans any artifact for what should have been masked. Masking cannot stop a model recognising a company by its products or executives, so compare masked and unmasked runs where that matters |
 | Humans decide the hard calls | A thesis marked broken by rule stops the run until a person approves it outside the tool |
 | No card can become advice | The opportunity contract has no field for a recommendation, price target, position size or probability; the writer, the skeptic and the verifier must be three different providers; a skeptic that invents a number is stopped by the audit |
 | Your forecasts cannot be flattered | Registered before the outcome with the ledger's own clock, append-only, resolvable only on their date, and no accuracy figure is shown below 30 resolved calls |
@@ -94,7 +102,7 @@ Tools: `run_today`, `get_latest_brief`, `list_opportunities`, `get_calibration`,
 | Data is displayed only where its licence allows | Each datum has a licence class; simulation-only and restricted data are refused in hosted and public contexts |
 | The safety tests can fail | The suite sabotages the gate in both directions and requires the shared cases to catch it |
 
-Tested: 113 TypeScript tests and 90 Python tests, plus opt-in live tests against the ECB and SEC APIs. CI runs on Linux with Node 24. The SEC parser is tested against real SEC data (Snowflake's filings) and hand-checked figures.
+Tested: 139 TypeScript tests and 90 Python tests, plus opt-in live tests against the ECB and SEC APIs. CI runs on Linux with Node 24. The SEC parser is tested against real SEC data (Snowflake's filings) and hand-checked figures.
 
 ## How it works
 
@@ -132,13 +140,12 @@ simulation engine (Python): prices ─► backtest ─► walk-forward ─► st
 
 ## Roadmap
 
-Built: your mandate, opportunity cards from SEC annual filings (quality and growth styles), a rule-based skeptic, the calibration ledger. Planned, in this order:
+Built: your mandate, opportunity cards from SEC annual filings (quality and growth styles), a rule-based skeptic, the calibration ledger, point-in-time filtering for SEC data, the masking module, and the planted-error corpus. Planned, in this order:
 
 1. **Insider transactions and fund holdings** from SEC filings, as sourced claims.
-2. **Price data** so the value style can run, with point-in-time filtering.
-3. **Leakage controls:** masking so agent backtests cannot use knowledge of the future.
-4. **A model-written analyst and skeptic** from different AI providers behind the existing interfaces, with replay logs. They cannot introduce a number: the audit still blocks it.
-5. **A dashboard** with an evidence drawer on every figure.
+2. **Price data** so the value style can run, filtered point in time like the filings.
+3. **A model-written analyst and skeptic** from different AI providers behind the existing interfaces, reading masked cards, with replay logs. They cannot introduce a number: the audit still blocks it, and a masked-versus-unmasked comparison measures how much they lean on memory.
+4. **A dashboard** with an evidence drawer on every figure.
 
 ## The GenInvestor network
 

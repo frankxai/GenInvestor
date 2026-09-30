@@ -30,7 +30,8 @@ function usage(): never {
 
   mandate example                                                      Print a starting mandate (your own rules)
   mandate check <file>                                                 Validate a mandate file
-  scout --mandate FILE [--out DIR] [--run ID]                          Find candidates for research against your mandate (SEC filings)
+  scout --mandate FILE [--out DIR] [--run ID] [--as-of DATE]           Find candidates for research against your mandate (SEC filings).
+                                                                       --as-of runs it as it would have run then: only filings public by that date
   calls register --claim TEXT --p 0.7 --resolves YYYY-MM-DD --source TEXT [--baseline 0.5] [--card ID]
   calls due | list | score                                             Your forecasts, registered before the outcome
   calls resolve <id> --outcome 1|0 [--note TEXT]
@@ -122,13 +123,20 @@ async function main() {
       console.error(error instanceof Error ? error.message : error);
       process.exit(1);
     }
+    const asOf = flag("as-of");
+    if (asOf !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(asOf)) {
+      console.error("--as-of must be a date like 2024-06-01");
+      process.exit(1);
+    }
+    if (asOf) console.log(`point-in-time run: only filings public on or before ${asOf} are used`);
     const store = new WorkflowStore(join(home, "runs.db"));
-    const runId = flag("run", `scout-${new Date().toISOString().slice(0, 10)}`) as string;
+    const runId = flag("run", `scout-${asOf ?? new Date().toISOString().slice(0, 10)}`) as string;
     const report = await runWorkflow(scoutWorkflow(), {
       store,
       runId,
       ctx: {
         ledger, table, mandate: m.mandate, sec,
+        ...(asOf ? { asOf, now: () => new Date(`${asOf}T12:00:00Z`) } : {}),
         writer: { provider: "template-writer" },
         skeptic: new RulesSkeptic(),
         verifier: new RulesVerifier(SCOUT_RECOMPUTE),

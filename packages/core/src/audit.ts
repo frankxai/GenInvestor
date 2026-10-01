@@ -42,11 +42,20 @@ export interface AuditOptions {
   tolerance?: number;
 }
 
-const ISO_DATE = /\d{4}-\d{2}-\d{2}(?:T[\d:.]+Z?)?/g;
-const NUMBER = /-?\d+(?:[.,]\d+)*/g;
+const ISO_DATE = /\d{4}-\d{2}(?:-\d{2}(?:T[\d:.]+Z?)?)?/g;
+const NUMBER = /(?<![A-Za-z0-9])[-+]?(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?|\.\d+)(?:e[-+]?\d+)?(?:\s*(?:thousand|million|billion|trillion)\b|[kmbt]\b)?/gi;
 
 export function numbersIn(text: string): number[] {
-  return (text.replace(ISO_DATE, " ").match(NUMBER) ?? []).map((t) => Number(t.replace(/,/g, "")));
+  const scale: Record<string, number> = { k: 1e3, thousand: 1e3, m: 1e6, million: 1e6, b: 1e9, billion: 1e9, t: 1e12, trillion: 1e12 };
+  const unsupported = [...text].some((c) => /\p{Number}/u.test(c) && !/^[0-9]+$/.test(c.normalize("NFKC")));
+  const normalized = text.normalize("NFKC");
+  const values = (normalized.replace(ISO_DATE, " ").match(NUMBER) ?? []).map((t) => {
+    const suffix = /(thousand|million|billion|trillion|[kmbt])$/i.exec(t);
+    const numeric = suffix ? t.slice(0, suffix.index).trim() : t;
+    return Number(numeric.replace(/,/g, "")) * (suffix ? scale[suffix[1]!.toLowerCase()]! : 1);
+  });
+  if (unsupported) values.push(Number.NaN); // Unsupported numeral scripts fail closed rather than vanish.
+  return values;
 }
 
 /**
@@ -88,6 +97,12 @@ export function claimsAudit(brief: Brief, ledger: EvidenceLedger, options: Audit
         continue;
       }
       claimNumbers.push(...numbersIn(claim.text));
+      const evidenced = claim.links.flatMap((l) => numbersIn(l.kind === "quote" ? l.fieldOrQuote : String(l.value ?? "")));
+      for (const n of numbersIn(claim.text)) {
+        if (!evidenced.some((v) => close(Math.abs(v), Math.abs(n), tol))) {
+          add("NUMBER_NOT_IN_CLAIMS", `claim ${id} states ${n} without a supporting link value`);
+        }
+      }
 
       for (const link of claim.links) {
         const source = ledger.getSource(link.sourceId);
@@ -125,9 +140,13 @@ export function claimsAudit(brief: Brief, ledger: EvidenceLedger, options: Audit
           const fn = options.recompute?.[link.fieldOrQuote];
           if (!fn) add("RECOMPUTE_MISMATCH", `no recompute function registered for "${link.fieldOrQuote}"`);
           else {
-            const again = fn(source.payload);
-            if (link.value === null || link.value === undefined || !close(again, Number(link.value), tol)) {
-              add("RECOMPUTE_MISMATCH", `"${link.fieldOrQuote}" recomputes to ${again}, claim states ${String(link.value)}`);
+            try {
+              const again = fn(source.payload);
+              if (!Number.isFinite(again) || link.value == null || !close(again, Number(link.value), tol)) {
+                add("RECOMPUTE_MISMATCH", `"${link.fieldOrQuote}" recomputes to ${again}, claim states ${String(link.value)}`);
+              }
+            } catch {
+              add("RECOMPUTE_MISMATCH", `"${link.fieldOrQuote}" could not be recomputed`);
             }
           }
         }

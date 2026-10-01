@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     paths:
+      - "apps/dashboard/**"
+      - "tools/export-public*"
       - "packages/**"
       - "engine/**"
       - "package.json"
@@ -69,3 +71,25 @@ jobs:
           node -e "const a=JSON.parse(require('fs').readFileSync('packages/contracts/policy/policy.json','utf8'));const b=JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP+'/policy.json','utf8'));if(JSON.stringify(a)!==JSON.stringify(b)){console.error('policy.json is stale');process.exit(1)}"
       - name: TypeScript gate passes every shared case
         run: node --disable-warning=ExperimentalWarning --test packages/core/test/policy.test.ts
+
+  dashboard:
+    runs-on: ubuntu-24.04
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    defaults:
+      run:
+        working-directory: apps/dashboard
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: npm run build
+
+  ownership:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 -m unittest discover -s packages/edgar-sidecar/test -v

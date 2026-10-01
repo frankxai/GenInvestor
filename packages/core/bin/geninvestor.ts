@@ -4,8 +4,8 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import {
-  CalibrationLedger, EcbProvider, ECB_SERIES, EvidenceLedger, evaluate, EXAMPLE_MANDATE, FileSecSource, loadMandate, loadPolicyTable, RulesSkeptic,
-  RulesVerifier, runWorkflow, SCOUT_RECOMPUTE, scoutWorkflow, SecProvider, TemplateAnalyst, todayWorkflow, WorkflowStore,
+  claimsAudit, CalibrationLedger, EcbProvider, ECB_SERIES, EvidenceLedger, evaluate, EXAMPLE_MANDATE, FilePriceSource, FileSecSource, loadMandate, loadPolicyTable, RulesSkeptic,
+  RECOMPUTE, RulesVerifier, runWorkflow, SCOUT_RECOMPUTE, scoutWorkflow, SecProvider, TemplateAnalyst, todayWorkflow, WorkflowStore,
 } from "../src/index.ts";
 import type { Thesis } from "../src/index.ts";
 
@@ -30,11 +30,9 @@ function usage(): never {
 
   mandate example                                                      Print a starting mandate (your own rules)
   mandate check <file>                                                 Validate a mandate file
-  scout --mandate FILE [--out DIR] [--run ID] [--as-of DATE]           Find candidates for research against your mandate (SEC filings).
+  scout --mandate FILE [--prices-dir DIR] [--out DIR] [--run ID] [--as-of DATE]           Find candidates for research against your mandate (SEC filings).
                                                                        --as-of runs it as it would have run then: only filings public by that date
-  calls register --claim TEXT --p 0.7 --resolves YYYY-MM-DD --source TEXT [--baseline 0.5] [--card ID]
-  calls due | list | score                                             Your forecasts, registered before the outcome
-  calls resolve <id> --outcome 1|0 [--note TEXT]
+  calls due | list                                                   Read your local resolution record (figures withheld)
 
   --home DIR   where the ledger lives (default ./.geninvestor)
   scout needs GENINVESTOR_SEC_IDENTITY="Your Name your@email" (the SEC requires a contact on every request),
@@ -71,7 +69,7 @@ async function main() {
   if (command === "calls") {
     const cal = new CalibrationLedger(join(home, "calibration.db"));
     const show = (c: ReturnType<CalibrationLedger["list"]>[number]) =>
-      `${c.id}  ${c.registeredAt.slice(0, 10)}  p=${c.probability}  resolves ${c.resolvesOn}  ${c.outcome === null ? "open" : c.outcome === 1 ? "HAPPENED" : "did not happen"}  ${c.claim}`;
+      `${c.id}  resolves ${c.resolvesOn}  ${c.outcome === null ? "open" : c.outcome === 1 ? "HAPPENED" : "did not happen"}`;
     try {
       if (args[1] === "register") {
         const claim = flag("claim");
@@ -92,7 +90,16 @@ async function main() {
         const all = cal.list();
         console.log(all.length ? all.map(show).join("\n") : "no calls registered");
       } else if (args[1] === "score") {
-        console.log(JSON.stringify(cal.score(), null, 2));
+        const { reliability: _privateBands, ...score } = cal.score();
+        const evidence = new EvidenceLedger(join(home,"ledger.db"));
+        try {
+          const counts = { open: score.open, resolved: score.resolved };
+          const source = evidence.addSource({provider:"resolution-record",url:"local://calibration/counts",asOf:new Date().toISOString().slice(0,10),retrievedAt:new Date().toISOString(),licenceClass:"user_licensed",delayedBySeconds:0,payload:counts});
+          const claims = Object.entries(counts).map(([key,value])=> evidence.addClaim({text:`${key}: ${value}`,kind:"fact",producedBy:"resolution-record",runId:source.id,links:[{sourceId:source.id,kind:"field",fieldOrQuote:key,value}]}));
+          const audit = claimsAudit({title:"",generatedAt:"",lines:claims.map(c=>({text:c.text,claimIds:[c.id]}))},evidence,{context:"local_user"});
+          if (!audit.passed) throw Error("Resolution counts failed audit");
+          console.log(JSON.stringify({...counts,claimIds:claims.map(c=>c.id),note:"Scores and probability bands are withheld; the sample floor does not replace a linked audit."},null,2));
+        } finally {evidence.close();}
       } else {
         usage();
       }
@@ -142,6 +149,7 @@ async function main() {
       runId,
       ctx: {
         ledger, table, mandate: m.mandate, sec,
+        prices: flag("prices-dir") ? new FilePriceSource(flag("prices-dir") as string) : undefined,
         ...(asOf ? { asOf, now: () => new Date(`${asOf}T12:00:00Z`) } : {}),
         writer: { provider: "template-writer" },
         skeptic: new RulesSkeptic(),
@@ -171,6 +179,7 @@ async function main() {
       console.log(`no claim ${id}`);
       process.exit(1);
     }
+    if (!claimsAudit({title:"",generatedAt:"",lines:[{text:chain.claim.text,claimIds:[id]}]},ledger,{context:"local_user",recompute:{...SCOUT_RECOMPUTE,...RECOMPUTE}}).passed) { console.error("Claim failed its evidence or rights audit."); process.exit(1); }
     console.log(`${chain.claim.kind.toUpperCase()}: ${chain.claim.text}`);
     for (const { link, source } of chain.sources) {
       console.log(`  ${link.kind} ${link.fieldOrQuote}${link.value ? ` = ${link.value}` : ""}`);

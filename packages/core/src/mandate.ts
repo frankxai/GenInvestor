@@ -13,7 +13,7 @@ export interface Mandate {
   styles: ("quality" | "growth" | "value" | "special-situation")[];
   exclusions?: { tickers?: string[]; keywords?: string[] };
   limits?: { maxPositionPct?: number; maxSectorPct?: number };
-  thresholds?: { minRevenueGrowthPct?: number; minOperatingMarginPct?: number; maxLiabilitiesToEquity?: number };
+  thresholds?: { minRevenueGrowthPct?: number; minOperatingMarginPct?: number; maxLiabilitiesToEquity?: number; maxAnnualEarningsMultiple?: number };
   watchlist: { ticker: string; cik?: string }[];
   holdings?: string[];
 }
@@ -58,7 +58,7 @@ export function checkMandate(input: unknown): MandateCheck {
   if (m.limits?.maxPositionPct !== undefined && m.limits.maxSectorPct !== undefined && m.limits.maxPositionPct > m.limits.maxSectorPct) {
     errors.push("limits.maxPositionPct cannot exceed limits.maxSectorPct");
   }
-  if (m.styles.includes("value")) warnings.push("style 'value' needs price data, which is not available yet: it will be skipped and said so in the screen record");
+  if (m.styles.includes("value")) warnings.push("style 'value' requires --prices-dir, positive annual diluted EPS, verified share basis and maxAnnualEarningsMultiple; otherwise it is skipped");
   if (m.styles.includes("special-situation")) warnings.push("style 'special-situation' is not implemented yet: it will be skipped and said so in the screen record");
   if (m.markets.some((x) => x !== "us-equities")) warnings.push("only 'us-equities' has a fundamentals source today (SEC filings); other markets will be skipped");
   return { valid: errors.length === 0, errors, warnings, mandate: errors.length === 0 ? m : undefined };

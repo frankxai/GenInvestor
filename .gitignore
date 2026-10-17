@@ -20,3 +20,8 @@ private/
 *.holdings.json
 *-real.json
 statements/
+
+
+.next/
+*.tsbuildinfo
+.env*

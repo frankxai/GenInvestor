@@ -129,7 +129,7 @@ test("list_opportunities and get_calibration read what the owner's own runs prod
   writeFileSync(join(home, "opportunities", "opportunities.json"), JSON.stringify({ date: "2026-09-30", cards: [] }));
   const got = await rpc("tools/call", { name: "list_opportunities", arguments: {} });
   assert.equal(got.result.isError, false);
-  assert.match(got.result.content[0].text, /# Opportunities/);
+  assert.equal(got.result.structuredContent.lines.length, 0);
   assert.equal(got.result.structuredContent.date, "2026-09-30");
 
   const cal = new CalibrationLedger(join(home, "calibration.db"), () => new Date("2026-01-01T09:00:00Z"));

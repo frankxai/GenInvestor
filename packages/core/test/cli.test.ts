@@ -154,7 +154,7 @@ test("calls: registered before the outcome, refused when malformed, unresolvable
   const early = cli(["calls", "resolve", id, "--outcome", "1", "--home", w.home]);
   assert.equal(early.code, 1);
   assert.match(early.err, /cannot be resolved before 2099-08-01/);
-  assert.match(cli(["calls", "list", "--home", w.home]).out, /STRONG keeps its operating margin/);
+  assert.ok(!cli(["calls", "list", "--home", w.home]).out.includes("20%"), "free-form forecast text is withheld");
   assert.match(cli(["calls", "due", "--home", w.home]).out, /nothing is due/);
   const score = JSON.parse(cli(["calls", "score", "--home", w.home]).out);
   assert.equal(score.open, 1);

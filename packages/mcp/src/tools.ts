@@ -2,6 +2,10 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   CalibrationLedger,
+  evidenceFigure,
+  claimsAudit,
+  SCOUT_RECOMPUTE,
+  RECOMPUTE,
   ECB_SERIES,
   EcbProvider,
   EvidenceLedger,
@@ -84,7 +88,9 @@ export function buildTools(ctx: ToolContext): ToolDef[] {
             lines.push(`- ${link.kind} ${link.fieldOrQuote}${link.value ? ` = ${link.value}` : ""}`);
             lines.push(`  source ${source?.provider} ${source?.url}; as of ${source?.asOf}; retrieved ${source?.retrievedAt}; sha256 ${source?.sha256}; licence ${source?.licenceClass}`);
           }
-          return { text: lines.join("\n"), structured: chain as unknown as Record<string, unknown> };
+          const figure = evidenceFigure({ text: chain.claim.text, claimIds: [chain.claim.id] },ledger,{ context: "local_user", recompute: { ...SCOUT_RECOMPUTE, ...RECOMPUTE } });
+          if (!figure) return { text: "Claim failed its evidence or rights audit.", isError: true };
+          return { text: chain.claim.text + "\n" + figure.receipts.flatMap(r=>r.sources.map(s=>`source ${s.provider}; sha256 ${s.sha256}`)).join("\n"), structured: figure as unknown as Record<string,unknown> };
         } finally {
           ledger.close();
         }
@@ -118,7 +124,13 @@ export function buildTools(ctx: ToolContext): ToolDef[] {
         const md = join(ctx.home, "briefs", "brief.md");
         const js = join(ctx.home, "briefs", "brief.json");
         if (!existsSync(md) || !existsSync(js)) return { text: "No brief has been published yet. Run run_today first.", isError: true };
-        return { text: readFileSync(md, "utf8"), structured: JSON.parse(readFileSync(js, "utf8")) };
+        const data = JSON.parse(readFileSync(js, "utf8"));
+        const ledger = open(ctx);
+        try {
+          const lines = Array.isArray(data.lines) ? data.lines : Array.isArray(data.cards) ? data.cards.flatMap((c: any) => [...c.whyPassed, ...c.wouldProveWrong, ...c.caseAgainst]) : undefined;
+          if (!lines || !claimsAudit({ title: "", generatedAt: "", lines },ledger,{ context: "local_user", recompute: { ...SCOUT_RECOMPUTE, ...RECOMPUTE } }).passed) return { text: "Stored artifact failed its evidence audit.", isError: true };
+          return { text: `# ${Array.isArray(data.lines) ? "Today" : "Opportunities"}, ${String(data.date ?? data.generatedAt).slice(0,10)}\n\n` + lines.map((l: any) => l.text).join("\n"), structured: { date: data.date ?? data.generatedAt, lines } };
+        } finally { ledger.close(); }
       },
     },
     {
@@ -136,27 +148,37 @@ export function buildTools(ctx: ToolContext): ToolDef[] {
         if (!existsSync(md) || !existsSync(js)) {
           return { text: "No scan has been run yet. The owner starts one with `geninvestor scout --mandate FILE` (it needs a mandate file and an SEC contact identity).", isError: true };
         }
-        return { text: readFileSync(md, "utf8"), structured: JSON.parse(readFileSync(js, "utf8")) };
+        const data = JSON.parse(readFileSync(js, "utf8"));
+        const ledger = open(ctx);
+        try {
+          const lines = Array.isArray(data.lines) ? data.lines : Array.isArray(data.cards) ? data.cards.flatMap((c: any) => [...c.whyPassed, ...c.wouldProveWrong, ...c.caseAgainst]) : undefined;
+          if (!lines || !claimsAudit({ title: "", generatedAt: "", lines },ledger,{ context: "local_user", recompute: { ...SCOUT_RECOMPUTE, ...RECOMPUTE } }).passed) return { text: "Stored artifact failed its evidence audit.", isError: true };
+          return { text: `# ${Array.isArray(data.lines) ? "Today" : "Opportunities"}, ${String(data.date ?? data.generatedAt).slice(0,10)}\n\n` + lines.map((l: any) => l.text).join("\n"), structured: { date: data.date ?? data.generatedAt, lines } };
+        } finally { ledger.close(); }
       },
     },
     {
       name: "get_calibration",
       title: "Read the calibration record",
       description:
-        "Return how many forecasts the owner has registered, how many are resolved, which are due, and the Brier score and reliability once at least 30 are resolved. " +
-        "Below that, only counts are returned. This tool cannot register or resolve a call: probabilities are the owner's own.",
+        "Return audited resolution counts and due identifiers. Scoring, probability bands and free-form forecast text are withheld. This tool cannot register or resolve a call.",
       inputSchema: { type: "object", additionalProperties: false, properties: {} },
       annotations: READ_ONLY,
       handler: () => {
         gate("research");
         const path = join(ctx.home, "calibration.db");
-        if (!existsSync(path)) return { text: "No forecasts have been registered yet.", structured: { resolved: 0, open: 0, due: [] } };
+        const wasEmpty = !existsSync(path);
         const cal = new CalibrationLedger(path, ctx.now);
         try {
           const score = cal.score();
-          const due = cal.due().map((c) => ({ id: c.id, claim: c.claim, resolvesOn: c.resolvesOn }));
-          const text = [`Resolved ${score.resolved}, open ${score.open}, due ${due.length}.`, score.note ?? `Brier ${score.brier} against a baseline of ${score.baselineBrier}.`].join("\n");
-          return { text, structured: { ...score, due } as unknown as Record<string, unknown> };
+          const due = cal.due().map((c) => ({ id: c.id, resolvesOn: c.resolvesOn }));
+          const ledger = open(ctx);
+          try {
+            const source = ledger.addSource({ provider: "resolution-record", url: "local://calibration/counts", asOf: (ctx.now?.() ?? new Date()).toISOString().slice(0,10), retrievedAt: (ctx.now?.() ?? new Date()).toISOString(), licenceClass: "user_licensed", delayedBySeconds: 0, payload: { resolved: score.resolved, open: score.open } });
+            const lines = ["resolved","open"].map((key) => { const value = key === "resolved" ? score.resolved : score.open; const claim = ledger.addClaim({ text: `${key}: ${value}`, kind: "fact", producedBy: "resolution-record", runId: source.id, links: [{sourceId:source.id,kind:"field",fieldOrQuote:key,value}] }); return {text:claim.text,claimIds:[claim.id]}; });
+            if (!claimsAudit({title:"",generatedAt:"",lines},ledger,{context:"local_user"}).passed) return {text:"Resolution record failed audit.",isError:true};
+            return { text: wasEmpty ? "No forecasts have been registered yet. Audited empty resolution record." : "Resolution counts only. Scores and probabilities are withheld; sample floor does not substitute for evidence.", structured: { resolved: score.resolved, open: score.open, due, lines } };
+          } finally { ledger.close(); }
         } finally {
           cal.close();
         }

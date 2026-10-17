@@ -91,7 +91,7 @@ test("end to end: a company that passes the rules becomes a fully sourced card w
   assert.ok(card.whyPassed.some((l) => /revenue of 1,100,000,000 USD .* up 10% from 1,000,000,000 USD/.test(l.text)));
   assert.ok(card.caseAgainst.some((l) => /moved from 30% a year earlier to 25%, a change of -5 percentage points/.test(l.text)));
   assert.ok(card.caseAgainst.some((l) => /Revenue growth was 10% against 11.11% the year before/.test(l.text)));
-  assert.equal(card.suggestedCall.note, "The probability is yours to set. This tool never suggests one.");
+  assert.equal(card.suggestedCall.note, "A research criterion only; no forecast is registered.");
   assert.ok(!("probability" in card.suggestedCall));
   // every numeric line opens to a chain in the ledger
   for (const l of [...card.whyPassed, ...card.wouldProveWrong, ...card.caseAgainst]) {
@@ -237,7 +237,7 @@ test("no output contains action or hype language", async () => {
     const t = Object.keys(data)[0]!;
     const md = out(await run(ctx(data, mandate({ watchlist: [{ ticker: t }] })))).markdown;
     for (const rx of deny) assert.ok(!rx.test(md), `${rx} in output`);
-    assert.match(md, /not recommendations/);
+    assert.match(md, /Candidates for research/);
     assert.match(md, /Information, not advice/);
   }
 });

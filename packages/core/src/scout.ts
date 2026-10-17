@@ -12,6 +12,8 @@ import { metricsOf, SEC_RECOMPUTE } from "./sec.ts";
 import type { Metrics, SecPayload } from "./sec.ts";
 import type { Datum } from "./ledger.ts";
 import { DISCLOSURE } from "./today.ts";
+import { annualEarningsMultiple } from "./prices.ts";
+import type { PriceSource, PricePayload } from "./prices.ts";
 
 export const MAX_CARDS = 5;
 
@@ -30,7 +32,7 @@ export interface Card {
   mandate: string; // fingerprint of the rules that produced it
   asOf: string;
   filedAt: string;
-  style: "quality" | "growth";
+  style: "quality" | "growth" | "value";
   score: number;
   whyPassed: BriefLine[];
   wouldProveWrong: BriefLine[];
@@ -39,6 +41,7 @@ export interface Card {
   checkNext: string[];
   suggestedCall: { claim: string; resolvesOn: string; resolutionSource: string; note: string };
   sourceId: string;
+  scoreClaimId?: string;
 }
 
 export interface ScreenRecord {
@@ -54,6 +57,7 @@ export interface ScreenRecord {
   skippedExcluded: number;
   noData: { ticker: string; reason: string }[];
   ranAt: string;
+  claimIds?: string[];
 }
 
 export interface FundamentalsSource {
@@ -85,10 +89,14 @@ export interface ScoutContext {
   now?: () => Date;
   /** Run the screen as it would have run on this date (YYYY-MM-DD): only filings public by then are used. */
   asOf?: string;
+  prices?: PriceSource;
 }
 
 /** Extra recompute functions the skeptic needs; registered alongside the SEC ones. */
-export const SCOUT_RECOMPUTE: Record<string, (payload: unknown) => number> = { ...SEC_RECOMPUTE };
+export const SCOUT_RECOMPUTE: Record<string, (payload: unknown) => number> = {
+  ...SEC_RECOMPUTE,
+  annual_earnings_multiple: (raw) => { const p = raw as { price: number; eps: number }; return Math.round(p.price / p.eps * 100) / 100; },
+};
 
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
 const usd = (n: number) => `${fmt(n)} USD`;
@@ -140,7 +148,7 @@ export function nextReportWindow(fiscalYearEnd: string, now: Date): { nextEnd: s
 function candidateClaims(ledger: EvidenceLedger, payload: SecPayload, m: Metrics, sec: string, mandateSource: string, t: typeof DEFAULT_THRESHOLDS) {
   const runId = `${payload.ticker}@${m.fiscalYearEnd}`;
   const link = (sourceId: string, kind: LinkInput["kind"], fieldOrQuote: string, value: number | string): LinkInput => ({ sourceId, kind, fieldOrQuote, value });
-  const mk = (text: string, links: LinkInput[]) => ledger.addClaim({ text, kind: "fact", producedBy: "scout", runId, links });
+  const mk = (text: string, links: LinkInput[]) => ledger.addClaim({ text, kind: "fact", producedBy: "scout", runId, links: text.startsWith(payload.name) ? [...links, link(sec, "field", "name", payload.name)] : links });
 
   const growth = mk(
     `${payload.name} reported revenue of ${usd(m.revenue)} for the fiscal year ended ${m.fiscalYearEnd}, ${m.revenueGrowthPct >= 0 ? "up" : "down"} ${Math.abs(m.revenueGrowthPct)}% from ${usd(m.priorRevenue)} the year before`,
@@ -162,9 +170,9 @@ export function screenRecordOf(ctx: ScoutContext, extra: Partial<ScreenRecord>):
   const styles = m.styles;
   return {
     mandate: mandateFingerprint(m),
-    stylesRun: styles.filter((s) => s === "quality" || s === "growth"),
+    stylesRun: styles.filter((s) => s === "quality" || s === "growth" || (s === "value" && ctx.prices && m.thresholds?.maxAnnualEarningsMultiple)),
     stylesUnavailable: [
-      ...(styles.includes("value") ? [{ style: "value", reason: "needs price data, which this tool does not have yet" }] : []),
+      ...(styles.includes("value") && (!ctx.prices || !m.thresholds?.maxAnnualEarningsMultiple) ? [{ style: "value", reason: "needs price data from a recorded source and an owner-defined maxAnnualEarningsMultiple" }] : []),
       ...(styles.includes("special-situation") ? [{ style: "special-situation", reason: "not implemented yet" }] : []),
     ],
     thresholds: effectiveThresholds(m),
@@ -181,7 +189,7 @@ export function screenRecordOf(ctx: ScoutContext, extra: Partial<ScreenRecord>):
 }
 
 interface FetchOutput {
-  fetched: { ticker: string; sourceId: string }[];
+  fetched: { ticker: string; sourceId: string; priceSourceId?: string }[];
   skippedHeld: number;
   skippedExcluded: number;
   noData: { ticker: string; reason: string }[];
@@ -229,7 +237,12 @@ export function scoutWorkflow(): Workflow<ScoutContext> {
           const name = (r.datum.payload as SecPayload).name.toLowerCase();
           if (keywords.some((k) => name.includes(k))) { out.skippedExcluded++; continue; }
           const source = ctx.ledger.addSource(r.datum);
-          out.fetched.push({ ticker: w.ticker, sourceId: source.id });
+          let priceSourceId: string | undefined;
+          if (ctx.prices && m.styles.includes("value")) {
+            try { priceSourceId = ctx.ledger.addSource(await ctx.prices.fetchPrice(w.ticker, ctx.asOf ?? now.toISOString())).id; }
+            catch { out.noData.push({ ticker: w.ticker, reason: "value style has no usable, fresh recorded price" }); }
+          }
+          out.fetched.push({ ticker: w.ticker, sourceId: source.id, priceSourceId });
         } catch (error) {
           out.noData.push({ ticker: w.ticker, reason: error instanceof Error ? error.message : String(error) });
         }
@@ -245,14 +258,34 @@ export function scoutWorkflow(): Workflow<ScoutContext> {
     run: (ctx, inputs) => {
       const f = inputs.fetch as FetchOutput;
       const t = effectiveThresholds(ctx.mandate);
-      const styles = ctx.mandate.styles.filter((s): s is "quality" | "growth" => s === "quality" || s === "growth");
+      const styles = ctx.mandate.styles.filter((s): s is "quality" | "growth" | "value" => s === "quality" || s === "growth" || (s === "value" && Boolean(ctx.prices) && Boolean(ctx.mandate.thresholds?.maxAnnualEarningsMultiple)));
       const found: ComputeOutput["candidates"] = [];
 
-      for (const { ticker, sourceId } of f.fetched) {
+      for (const { ticker, sourceId, priceSourceId } of f.fetched) {
         const payload = ctx.ledger.getSource(sourceId)?.payload as SecPayload;
         const metrics = metricsOf(payload);
         for (const style of styles) {
-          const criteria = criteriaFor(style, metrics, t);
+          let valueLine: BriefLine | undefined;
+          let multiple: number | undefined;
+          const ceiling = ctx.mandate.thresholds?.maxAnnualEarningsMultiple;
+          if (style === "value") {
+            const eps = payload.dilutedEps?.find((p) => p.end === metrics.fiscalYearEnd);
+            const price = priceSourceId ? ctx.ledger.getSource(priceSourceId) : undefined;
+            if (!eps || !price || !ceiling) continue;
+            try { multiple = annualEarningsMultiple(price, eps.val); } catch { continue; }
+            if (multiple > ceiling) continue;
+            const input = ctx.ledger.addSource({ ...price, provider: "value-basis", url: `local://value/${sourceId}/${priceSourceId}`, payload: { price: (price.payload as PricePayload).latest.close, eps: eps.val, secSourceId: sourceId, priceSourceId } });
+            const epsIndex = payload.dilutedEps!.indexOf(eps);
+            const text = `Annual earnings multiple was ${multiple}, using recorded price ${(price.payload as PricePayload).latest.close} USD and annual diluted EPS ${eps.val} USD per share`;
+            const claim = ctx.ledger.addClaim({ text, kind: "fact", producedBy: "value-screen", runId: `${ticker}@${price.asOf}`, links: [
+              { sourceId: input.id, kind: "computed", fieldOrQuote: "annual_earnings_multiple", value: multiple },
+              { sourceId: price.id, kind: "field", fieldOrQuote: "latest.close", value: (price.payload as PricePayload).latest.close },
+              { sourceId, kind: "field", fieldOrQuote: `dilutedEps.${epsIndex}.val`, value: eps.val },
+            ] });
+            valueLine = { text, claimIds: [claim.id] };
+          }
+          const criteria = criteriaFor(style === "value" ? "quality" : style, metrics, t);
+          if (style === "value") criteria.splice(0, criteria.length);
           if (!criteria.every((c) => c.passed)) continue;
           const claims = candidateClaims(ctx.ledger, payload, metrics, sourceId, f.mandateSourceId, t);
           const passedLines: BriefLine[] =
@@ -260,6 +293,7 @@ export function scoutWorkflow(): Workflow<ScoutContext> {
               ? [claims.margin, claims.leverage, claims.growth].filter((c) => c !== undefined).map((c) => ({ text: c.text, claimIds: [c.id] }))
               : [claims.growth, claims.margin].filter((c) => c !== undefined).map((c) => ({ text: c.text, claimIds: [c.id] }));
           passedLines.push({ text: claims.thresholds.text, claimIds: [claims.thresholds.id] });
+          if (valueLine) passedLines.push(valueLine);
 
           const proveWrong = criteria
             .filter((c) => c.id !== "revenue_not_shrinking" && c.id !== "profitable")
@@ -273,6 +307,7 @@ export function scoutWorkflow(): Workflow<ScoutContext> {
             }));
           if (style === "quality") proveWrong.push({ text: "This case is also wrong if revenue starts to shrink year on year", claimIds: [] });
           if (style === "growth") proveWrong.push({ text: "This case is also wrong if the company stops being profitable at the operating level", claimIds: [] });
+          if (style === "value") proveWrong.push({ text: "Recheck when earnings, share basis or the recorded price changes; this annual ratio is not a valuation conclusion", claimIds: [] });
 
           const { nextEnd, resolvesOn } = nextReportWindow(metrics.fiscalYearEnd, (ctx.now ?? (() => new Date()))());
           const checkedMeasure = style === "quality" ? `operating margin at or above ${t.minOperatingMarginPct}%` : `revenue growth at or above ${t.minRevenueGrowthPct}%`;
@@ -283,12 +318,12 @@ export function scoutWorkflow(): Workflow<ScoutContext> {
             asOf: metrics.fiscalYearEnd,
             filedAt: metrics.filedAt,
             style,
-            score: scoreOf(criteria),
+            score: style === "value" ? Math.round((1 - multiple! / ceiling!) * 1000) / 1000 : scoreOf(criteria),
             whyPassed: [...passedLines, { text: claims.filed.text, claimIds: [claims.filed.id] }],
             wouldProveWrong: proveWrong,
             caseAgainst: [],
             risks: [
-              "Price and valuation are not part of this screen. A strong business can still be an expensive one.",
+              style === "value" ? "Annual earnings multiple uses recorded prices and annual diluted EPS; it is not a target or a valuation conclusion." : "Price and valuation are not part of this screen. A strong business can still be an expensive one.",
               "It reads annual reports only, so anything that changed since the latest one is not reflected.",
               ...(metrics.negativeEquity ? ["Shareholders' equity is negative, so leverage cannot be read from it."] : []),
             ],
@@ -301,7 +336,7 @@ export function scoutWorkflow(): Workflow<ScoutContext> {
               claim: `${ticker}: ${checkedMeasure} in the annual report for the fiscal year ending ${nextEnd}`,
               resolvesOn,
               resolutionSource: `Form 10-K for the fiscal year ending ${nextEnd}, on SEC EDGAR`,
-              note: "The probability is yours to set. This tool never suggests one.",
+              note: "A research criterion only; no forecast is registered.",
             },
             sourceId,
           };
@@ -318,6 +353,13 @@ export function scoutWorkflow(): Workflow<ScoutContext> {
         skippedExcluded: f.skippedExcluded,
         noData: f.noData,
       });
+      const stats = ctx.ledger.addSource({ provider: "screen-record", url: `local://screen/${screen.mandate}/${screen.ranAt}`, asOf: screen.ranAt.slice(0, 10), retrievedAt: screen.ranAt, licenceClass: "user_licensed", delayedBySeconds: 0, payload: { ...screen, scores: top.map((x) => x.card.score), inputSourceIds: f.fetched.map((x) => x.sourceId) } });
+      screen.claimIds = ["universe", "screened", "passed", "skippedHeld", "skippedExcluded"].map((key) => {
+        const value = screen[key as keyof ScreenRecord] as number;
+        const label = { universe: "Companies in universe", screened: "Companies screened", passed: "Candidates passed", skippedHeld: "Already held", skippedExcluded: "Excluded by your rules" }[key]!;
+        return ctx.ledger.addClaim({ text: `${label}: ${value}`, kind: "fact", producedBy: "screen-record", runId: screen.ranAt, links: [{ sourceId: stats.id, kind: "field", fieldOrQuote: key, value }] }).id;
+      });
+      top.forEach((x, i) => { x.card.scoreClaimId = ctx.ledger.addClaim({ text: `Rule fit score ${x.card.score}`, kind: "fact", producedBy: "screen-record", runId: screen.ranAt, links: [{ sourceId: stats.id, kind: "field", fieldOrQuote: `scores.${i}`, value: x.card.score }] }).id; });
       return { output: { candidates: top, screen, mandateSourceId: f.mandateSourceId } satisfies ComputeOutput };
     },
   };
@@ -338,18 +380,21 @@ export function scoutWorkflow(): Workflow<ScoutContext> {
     },
   };
 
-  const allLines = (cards: Card[]) => cards.flatMap((c) => [...c.whyPassed, ...c.wouldProveWrong, ...c.caseAgainst]);
+  const allLines = (cards: Card[], screen: ScreenRecord, ledger: EvidenceLedger) => [
+    ...cards.flatMap((c) => [...c.whyPassed, ...c.wouldProveWrong, ...c.caseAgainst]),
+    ...[...(screen.claimIds ?? []), ...cards.flatMap((c) => c.scoreClaimId ? [c.scoreClaimId] : [])].map((id) => ({ text: ledger.getClaim(id)?.text ?? "Missing run record", claimIds: [id] })),
+  ];
 
   const verify: NodeDef<ScoutContext> = {
     id: "verify",
     kind: "verify",
     deps: ["skeptic"],
     run: (ctx, inputs) => {
-      const { cards } = inputs.skeptic as { cards: Card[] };
+      const { cards, screen } = inputs.skeptic as { cards: Card[]; screen: ScreenRecord };
       if (ctx.verifier.provider === ctx.writer.provider || ctx.verifier.provider === ctx.skeptic.provider) {
         return { block: `the verifier (${ctx.verifier.provider}) must differ from the writer and the skeptic` };
       }
-      const r = ctx.verifier.check(allLines(cards), ctx.ledger);
+      const r = ctx.verifier.check(allLines(cards, screen, ctx.ledger), ctx.ledger);
       return r.passed ? { output: { verifiedBy: ctx.verifier.provider } } : { block: `verifier rejected: ${r.issues.join("; ")}` };
     },
   };
@@ -359,8 +404,8 @@ export function scoutWorkflow(): Workflow<ScoutContext> {
     kind: "audit",
     deps: ["skeptic"],
     run: (ctx, inputs) => {
-      const { cards } = inputs.skeptic as { cards: Card[] };
-      const result = claimsAudit({ title: "Opportunities", generatedAt: "", lines: allLines(cards) }, ctx.ledger, { context: ctx.displayContext, recompute: SCOUT_RECOMPUTE });
+      const { cards, screen } = inputs.skeptic as { cards: Card[]; screen: ScreenRecord };
+      const result = claimsAudit({ title: "Opportunities", generatedAt: "", lines: allLines(cards, screen, ctx.ledger) }, ctx.ledger, { context: ctx.displayContext, recompute: SCOUT_RECOMPUTE });
       return result.passed ? { output: { passed: true } } : { block: `claims audit failed: ${result.findings.map((f) => `${f.code} (${f.detail.slice(0, 80)})`).join("; ")}` };
     },
   };
@@ -374,11 +419,12 @@ export function scoutWorkflow(): Workflow<ScoutContext> {
     run: (ctx, inputs) => {
       const { cards, screen } = inputs.skeptic as { cards: Card[]; screen: ScreenRecord };
       const date = screen.ranAt.slice(0, 10);
-      const list = (lines: BriefLine[]) => lines.map((l) => `- ${l.text}`).join("\n");
+      const list = (lines: BriefLine[]) => lines.map((l) => `- ${l.text}${l.claimIds.map((id) => ` [claim:${id}]`).join("")}`).join("\n");
       const md = [
         `# Opportunities, ${date}`,
         "",
-        `Candidates for research, not recommendations. ${screen.passed} of ${screen.screened} screened companies passed; ${cards.length} shown (at most ${MAX_CARDS}). Zero is a valid result.`,
+        "Candidates for research, not recommendations. Zero is a valid result. Every figure below links to a claim in the local ledger.",
+        ...(screen.claimIds ?? []).map((id) => `- ${ctx.ledger.getClaim(id)!.text} [claim:${id}]`),
         "",
         ...cards.flatMap((c) => [
           `## ${c.name} (${c.ticker})`,
@@ -399,19 +445,19 @@ export function scoutWorkflow(): Workflow<ScoutContext> {
           "**Check next**",
           c.checkNext.map((r) => `- ${r}`).join("\n"),
           "",
-          "**A call you could register** (the probability is yours)",
-          `- ${c.suggestedCall.claim}. Resolves on ${c.suggestedCall.resolvesOn}. Source: ${c.suggestedCall.resolutionSource}.`,
+          "**Research criterion**",
+          "- Recheck the linked mandate criterion against the next primary filing; no forecast is registered.",
           "",
         ]),
         "## Screen record",
         `- Rules fingerprint ${screen.mandate}; styles run: ${screen.stylesRun.join(", ") || "none"}.`,
         ...screen.stylesUnavailable.map((s) => `- Style ${s.style} was skipped: ${s.reason}.`),
-        `- Thresholds: revenue growth at least ${screen.thresholds.minRevenueGrowthPct}%, operating margin at least ${screen.thresholds.minOperatingMarginPct}%, liabilities at most ${screen.thresholds.maxLiabilitiesToEquity} times equity${screen.thresholdsFromDefaults.length ? ` (defaults used for: ${screen.thresholdsFromDefaults.join(", ")})` : ""}.`,
-        `- Skipped: ${screen.skippedHeld} already held, ${screen.skippedExcluded} excluded by your rules, ${screen.noData.length} without usable data.`,
+        "- Thresholds are linked to your mandate in each card; the screen is a research filter.",
+        "- Skipped and missing data are recorded above; unavailable inputs are never inferred.",
         ...screen.noData.map((n) => `  - ${n.ticker}: ${n.reason}`),
         "",
         "## Not visible to this screen",
-        "Accounting quality, management, legal exposure, competition, and price. It reads annual filings only.",
+        "Accounting quality, management, legal exposure and competition. Price requires explicitly compatible recorded data.",
         "",
         "---",
         DISCLOSURE,
@@ -427,7 +473,7 @@ export function scoutWorkflow(): Workflow<ScoutContext> {
     },
   };
 
-  return { id: "scout", version: "1", nodes: [fetch, compute, skeptic, verify, audit, gate, publish] };
+  return { id: "scout", version: "2", nodes: [fetch, compute, skeptic, verify, audit, gate, publish] };
 }
 
 /** The default skeptic: counter-evidence drawn from the same filings, never from a model. */
@@ -473,7 +519,7 @@ export class RulesSkeptic implements Skeptic {
       ]);
     }
     if (lines.length === 0) lines.push({ text: "No adverse trend was found in the three measures this screen reads. That is a limit of the screen, not a finding about the business.", claimIds: [] });
-    lines.push({ text: "A screen on annual filings cannot see accounting quality, management, legal exposure, competition or price. Assume the strongest argument against this company is one it cannot see.", claimIds: [] });
+    lines.push({ text: "A screen on annual filings cannot see accounting quality, management, legal exposure, competition or a complete valuation. Assume the strongest argument against this company is one it cannot see.", claimIds: [] });
     return lines;
   }
 }

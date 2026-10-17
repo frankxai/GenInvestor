@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { BAND_FLOOR, CalibrationLedger, SAMPLE_FLOOR } from "../src/calibration.ts";
 import type { CallInput } from "../src/calibration.ts";
@@ -124,7 +127,7 @@ test("reliability bands below the band floor are not shown", () => {
 
 test("the ledger works from a file and survives reopening", () => {
   const c = clock();
-  const dir = `${process.env.TMPDIR ?? process.env.TEMP ?? "."}/gi-cal-${process.pid}.db`;
+  const dir = join(mkdtempSync(join(tmpdir(), "gi-cal-")), "calls.db");
   const a = new CalibrationLedger(dir, c.now);
   const row = a.register(call());
   a.close();

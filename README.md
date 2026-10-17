@@ -1,168 +1,89 @@
 # GenInvestor
 
-**Open-source, local-first investor tooling where every number shows its source.**
+Local-first research tooling with an evidence chain behind every displayed figure. Apache-2.0. No hosted service, custody, orders or advice.
 
-GenInvestor builds a daily brief from public data, audits every line against stored evidence, and refuses to publish a number it cannot back. It runs on your machine and inside your AI assistant over MCP. It holds no custody, places no orders, and gives no advice.
+**Alpha.** This draft adds evidence-integrity fixes, recorded Form 4/13F parsing, rights-aware recorded prices, an annual earnings-multiple filter, three-provider model adapters, an owner-reviewed daily scan and a local dashboard. Offline tests cover these paths. Live SEC ownership retrieval and live model requests have not been verified. The project is not a predictive track record.
 
-> **Status: alpha (0.1).** The evidence layer, the audit, the CLI, the MCP server, the simulation engine, your mandate, the opportunity scout (SEC filings) and the calibration ledger work and are tested. Model-written analysis, insider-trade data, price-based screens and the dashboard are planned, not built. See [Roadmap](#roadmap).
+## Run locally
 
-## Try it
+The core and MCP server need Node 22.18 or newer. They have no runtime dependencies. The dashboard is a separate Next.js application with a locked dependency tree.
 
-Needs Node 22.18 or newer (24 recommended). No install step, no dependencies.
-
-```bash
-git clone https://github.com/frankxai/GenInvestor && cd GenInvestor
-node packages/core/bin/geninvestor.ts today
-```
-
-That fetches live data from the ECB and writes a brief. Real output:
-
-```
-# Today, 2026-09-29
-
-- EUR/USD reference rate was 1.1355 USD on 2026-09-29, down 0.2% on the prior observation
-  (ecb, as of 2026-09-29, retrieved 2026-09-30T03:40Z)
-- Euro short-term rate (€STR) was 2.44% on 2026-09-28, unchanged on the prior observation
-- Euro area HICP inflation, annual rate was 1.9% on 2025-12, down 0.2 percentage points on the prior
-  observation (as of 2025-12, ⚠ stale, 273 days old)
-- ECB deposit facility rate was set to 2.5% on 2026-09-16, from 2.25%
-
-## Data quality
-- Euro area HICP inflation, annual rate: latest observation is 273 days old, past its expected cadence.
-```
-
-Every line links to a stored source. Ask why:
-
-```bash
-node packages/core/bin/geninvestor.ts explain <claim id>   # source, as-of, retrieved, sha256, licence
-node packages/core/bin/geninvestor.ts verify               # re-hash everything, report tampering
-node packages/core/bin/geninvestor.ts policy live_trade    # ask the autonomy gate: human_gate
-```
-
-### Find candidates for research against your own rules
-
-Write your mandate (markets, horizon, risk, exclusions, thresholds, a watchlist), then run the scout. It reads each company's annual reports from SEC EDGAR, screens them, and returns at most five **candidates for research**: each with the evidence, what would prove it wrong, and the case against it from a separate skeptic.
-
-```bash
-node packages/core/bin/geninvestor.ts mandate example > mandate.json   # edit it: it is your rules
+```sh
+git clone https://github.com/frankxai/GenInvestor
+cd GenInvestor
+npm test
+node packages/core/bin/geninvestor.ts mandate example > mandate.json
 node packages/core/bin/geninvestor.ts mandate check mandate.json
-export GENINVESTOR_SEC_IDENTITY="Your Name your@email"                 # the SEC requires a contact on every request
-node packages/core/bin/geninvestor.ts scout --mandate mandate.json
-node packages/core/bin/geninvestor.ts scout --mandate mandate.json --as-of 2024-06-01   # as it would have run then
+node packages/core/bin/geninvestor.ts scout --mandate mandate.json --facts-dir recorded-facts --as-of YYYY-MM-DD
+node packages/core/bin/geninvestor.ts explain CLAIM_ID
+node packages/core/bin/geninvestor.ts verify
 ```
 
-No SEC contact yet, or you want an exactly reproducible run? Put recorded company-facts responses in a folder as `<TICKER>.json` and add `--facts-dir DIR`: no network and no identity needed. The test suite runs the real command line this way.
+Until this draft is merged, check out the draft branch before running these commands. Recorded company-facts files are named `<TICKER>.json`; the screen uses only filings available by the cutoff. Live fundamentals need the owner's `GENINVESTOR_SEC_IDENTITY`, set outside git. The contact is never invented. Recorded prices need an explicit source URL, licence URL, licence class, currency, unadjusted basis, compatible EPS basis and availability timestamp. Add `--prices-dir DIR` and an owner-defined `maxAnnualEarningsMultiple` to enable the value filter. It is a historical annual ratio, not a valuation conclusion.
 
-`--as-of` is point-in-time: only filings that were public on that date are used, and where a year was later restated, the version people could actually see then wins. A historical screen that quietly uses today's data is worthless, so this is tested on real filings (Snowflake's), including the day-of-filing boundary.
+Ownership parser usage and limits: [packages/edgar-sidecar/README.md](packages/edgar-sidecar/README.md). Missing prices stay unknown. Amendments remain separate evidence; delayed holdings never become inferred trades.
 
-- **Candidates, never recommendations.** The card schema has no field for a buy, a price target, a position size or a probability, and a test enforces it.
-- **Zero is a valid result.** A screen that finds nothing says so.
-- **Your holdings and exclusions stay private.** They are counted ("2 skipped"), never named, and never written to the ledger.
-- **Styles today:** `quality` and `growth`, from annual filings. `value` needs price data and `special-situation` is not built; the screen record says so instead of pretending.
+## Daily scan and human review
 
-Then keep score of your own judgement. A forecast is registered before the outcome, cannot be edited or back-dated, and is resolved on its date:
+Create `daily.json` using paths relative to that file:
 
-```bash
-node packages/core/bin/geninvestor.ts calls register --claim "X keeps operating margin at or above 20% in its FY2026 report" \
-  --p 0.7 --resolves 2027-08-01 --source "Form 10-K FY2026 on SEC EDGAR"
-node packages/core/bin/geninvestor.ts calls due        # what is ready to resolve
-node packages/core/bin/geninvestor.ts calls resolve <id> --outcome 1
-node packages/core/bin/geninvestor.ts calls score      # counts only, until 30 calls are resolved
+```json
+{
+  "mandate": "mandate.json",
+  "factsDir": "recorded-facts",
+  "pricesDir": "recorded-prices",
+  "ownershipFiles": [],
+  "asOf": "YYYY-MM-DD"
+}
 ```
 
-The probability is always yours. Nothing here suggests one, and the MCP server cannot register or resolve a call.
-
-### Use it from your AI assistant
-
-GenInvestor ships an MCP server (stdio, no dependencies) with read-only evidence tools and a local brief run:
-
-```bash
-claude mcp add geninvestor -- node --disable-warning=ExperimentalWarning /path/to/GenInvestor/packages/mcp/bin/geninvestor-mcp.ts
+```sh
+npm run daily -- --config daily.json
+# Inspect the returned reviewPath. Then the owner explicitly promotes the reviewed run:
+npm run daily -- --review DAILY_RUN_ID
 ```
 
-Tools: `run_today`, `get_latest_brief`, `list_opportunities`, `get_calibration`, `explain_claim`, `verify_ledger`, `check_action`. There is no tool that approves, trades, transfers, signs, or registers a forecast, and a test fails if one is added.
+A run prepares audited local artifacts and stops at human review. No scheduler is activated. A cron job in the owner's environment can invoke the preparation command; never schedule the review command. Missing data can produce an honest empty result. Changed inputs are freshly read on each preparation. A changed staged artifact fails review.
 
-## What it guarantees, and how that is tested
+Optional `models` config contains `analyst`, `skeptic` and `verifier`, each with explicit `provider` and `model`. The providers must be distinct: `openai`, `anthropic`, `google`. Live requests need `--live-models` plus environment credentials. They receive audited text and opaque claim IDs, not raw source payloads or URLs. They can write qualitative notes only. A rejecting verifier stops the run. Masked/unmasked replay comparisons remain local; they are not evidence of investment performance or a causal test of memorisation. Live trials must be repeated and order-balanced. Entity masking cannot prevent semantic re-identification.
 
-| Guarantee | How it is enforced |
-|---|---|
-| No unbacked number is published | A claims audit blocks lines whose numbers are not in a linked claim, whose stored field disagrees, whose quote is not a byte match, whose computed value does not recompute, or whose source no longer matches its hash |
-| Evidence cannot be rewritten | The ledger is append-only, enforced by database triggers; `verify` re-hashes every source and exposes tampering that bypasses them |
-| Rates are never shown as a percent of a percent | Series carry a kind (level, rate, event); rates and events are described in percentage points |
-| Old data is flagged, not trusted | Each series has an expected cadence; stale data is marked in the line and in a data-quality section, and a thesis that rests on it goes on watch instead of being judged |
-| Nothing moves money | One autonomy gate, capped at simulation. Its table and 35 adversarial cases live in `packages/contracts/policy/policy.json`; the Python and TypeScript gates must pass every case, and CI compares the file with what the engine exports |
-| A claim states the value it cites | The audit also blocks a claim that links a field or a computed value its own text does not state, so text and evidence cannot drift apart |
-| A citation supports its line | A line must be its claim's own words or share a figure with it, so a sentence with no numbers cannot cite an unrelated claim |
-| Figures are compared exactly | One dollar on a billion is a difference. Floating-point noise is not |
-| The checks are measured, not assumed | A planted-error corpus runs in CI over real cards and briefs: 124 corrupted numbers, 85 tampered evidence links (caught by the audit and, separately, by an independent verifier), 6 tampered sources, 39 missing, invented or borrowed citations and 8 fabricated quotations. All are caught, and clean output raises zero false alarms. Building the corpus found two real holes in the audit, both now fixed |
-| Historical runs see only what was public then | `scout --as-of DATE` filters every filing by the date it was filed and picks the restatement that existed then |
-| Model readers cannot lean on memory | A masking module gives companies and tickers stable pseudonyms, turns dates into offsets (`D-243`, `Y-1`) and leaves figures alone; an auditor scans any artifact for what should have been masked. Masking cannot stop a model recognising a company by its products or executives, so compare masked and unmasked runs where that matters |
-| Humans decide the hard calls | A thesis marked broken by rule stops the run until a person approves it outside the tool |
-| No card can become advice | The opportunity contract has no field for a recommendation, price target, position size or probability; the writer, the skeptic and the verifier must be three different providers; a skeptic that invents a number is stopped by the audit |
-| Your forecasts cannot be flattered | Registered before the outcome with the ledger's own clock, append-only, resolvable only on their date, and no accuracy figure is shown below 30 resolved calls |
-| Your rules stay yours | Holdings, exclusions and the watchlist are never written to the ledger or any output; only a fingerprint of the screen rules is |
-| Data is displayed only where its licence allows | Each datum has a licence class; simulation-only and restricted data are refused in hosted and public contexts |
-| The safety tests can fail | The suite sabotages the gate in both directions and requires the shared cases to catch it |
+## Dashboard
 
-Tested: 148 TypeScript tests (including the real command line, run end to end) and 90 Python tests, plus opt-in live tests against the ECB and SEC APIs. CI runs on Linux with Node 24. The SEC parser is tested against real SEC data (Snowflake's filings) and hand-checked figures.
-
-## How it works
-
-```
-sources ──► providers ──► evidence ledger ──► workflow graph ──► surfaces
-ECB (live)  datum with     append-only        fetch, compute,     CLI
-            as-of, hash,   SQLite: sources,   thesis, analyse,    MCP server
-            licence        claims, links      verify, audit,
-                                              human, gate, publish
-                        autonomy gate: one contract file, checked in two languages
-
-simulation engine (Python): prices ─► backtest ─► walk-forward ─► stress ─► study JSON
+```sh
+cd apps/dashboard
+npm ci --ignore-scripts
+GENINVESTOR_HOME=/absolute/path/to/.geninvestor npm run dev
 ```
 
-- `packages/contracts`: the gate table and JSON Schemas (datum, claim, brief, mandate, opportunities) with a small validator that rejects keywords it does not enforce.
-- `packages/core`: ledger, claims audit, workflow graph, providers (ECB, SEC), the daily brief, the mandate, the scout, the calibration ledger, the CLI.
-- `packages/mcp`: the MCP server.
-- `engine`: the simulation engine. See [engine/README.md](engine/README.md).
+A keyboard command palette, candidate panels and source desk read the local ledger. Click any marked research figure to open its claim, exact field, source URL, date, retrieval time, hash, rights and audit status. An empty workspace contains no invented research numbers. Invalid contracts, tampered evidence or unsupported figures block display. Keep the server on localhost; it has no remote authentication. [Dashboard details](apps/dashboard/README.md).
 
-## What it is not
+## MCP and boundaries
 
-- **Not investment advice.** It never says to buy or sell. Read [DISCLAIMER.md](DISCLAIMER.md).
-- **Not a broker or a wallet.** No custody, no orders, no keys. Secrets and raw account exports are hard-blocked verbs.
-- **Not a prediction engine.** The brief is written by a template today, so it reads plainly by design. When a model is added, it cannot introduce a number: the audit still blocks it.
+```sh
+node packages/mcp/bin/geninvestor-mcp.ts
+```
 
-## Known limits
+Tools: `run_today`, `get_latest_brief`, `list_opportunities`, `get_calibration`, `explain_claim`, `verify_ledger`, `check_action`. Stored artifacts and explained claims are re-audited before serving. Calibration exposes audited counts only; scoring bands and free-form forecast text are withheld. No tool approves a human gate, registers a forecast, trades, transfers or signs.
 
-- The euro-area inflation series on the ECB API ends at 2025-12 and is flagged stale.
-- **The SEC path has not yet been run end to end against the live API.** The provider is tested against real recorded SEC data and a fake transport; the one live attempt from a development machine was refused (HTTP 403, "Request Rate Threshold Exceeded") on its first request, and the cause is not established (the contact identity used was a placeholder, and the SEC also filters automated traffic). Set `GENINVESTOR_SEC_IDENTITY` to your own real contact and run `npm run test:live`, then tell us what happens.
-- The scout reads annual filings only: no prices, so no valuation; no quarterly data, so nothing since the last annual report.
-- The skeptic and verifier are rule-based. The cards are written by a template, so they read plainly by design.
-- Insider transactions and fund holdings are not built yet. ECB macro data is the only other source.
-- The TradingView connector expects snapshot files; the live response format of TradingView's MCP server is unverified.
-- No dashboard yet.
+The shared autonomy contract is enforced in TypeScript and Python with parity tests. The Python engine remains a simulation tool: [engine/README.md](engine/README.md). Read [DISCLAIMER.md](DISCLAIMER.md), [SECURITY.md](SECURITY.md), [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/AGENTS.md](docs/AGENTS.md).
 
-## Roadmap
+## Verification and remaining work
 
-Built: your mandate, opportunity cards from SEC annual filings (quality and growth styles), a rule-based skeptic, the calibration ledger, point-in-time filtering for SEC data, the masking module, and the planted-error corpus. Planned, in this order:
+```sh
+npm test
+python3 -m unittest discover -s packages/edgar-sidecar/test -v
+uv run --directory engine --extra dev pytest -q
+npm run typecheck --prefix apps/dashboard
+npm run build --prefix apps/dashboard
+```
 
-1. **Insider transactions and fund holdings** from SEC filings, as sourced claims.
-2. **Price data** so the value style can run, filtered point in time like the filings.
-3. **A model-written analyst and skeptic** from different AI providers behind the existing interfaces, reading masked cards, with replay logs. They cannot introduce a number: the audit still blocks it, and a masked-versus-unmasked comparison measures how much they lean on memory.
-4. **A dashboard** with an evidence drawer on every figure.
+The audit checks numeric support, source hashes, exact fields, literal quotes, deterministic recomputation and display rights. It does not prove semantic truth or detect every misleading paraphrase. Model-provider contracts are tested with mock transports, not live credentials. The ownership parser currently has synthetic XML tests; real recorded filing fixtures and a source-verified live retrieval trial remain required. Price/EPS basis compatibility is an explicit owner assertion, not independently established corporate-action history. An independently reviewed automatic free-price connector remains to be selected.
 
-## The GenInvestor network
+npm dry runs are packaging diagnostics only. Core and MCP packages remain private and reference sibling contracts; independent npm installation is not ready. MCP SDK conformance, source cadence metadata, broader planted model-error trials and the independent review of this change are release gates. No npm publish or deployment is performed.
 
-- **[geninvestor-skills](https://github.com/frankxai/geninvestor-skills):** four installable agent skills (thesis tracking, source checks, opportunity screens, calibration logs) for any assistant. `npx skills add frankxai/geninvestor-skills`.
-- **[awesome-investor-agent-skills](https://github.com/frankxai/awesome-investor-agent-skills):** a catalogue of investing agent tools and standards, with a weekly research loop that flags licence traps.
-- **Learning materials:** planned. Open curriculum first; nothing to join yet.
+## Related projects
 
-Read the [MANIFESTO](MANIFESTO.md) for what we are trying to build, and [BRAND.md](BRAND.md) for how to refer to the project.
+- [geninvestor-skills](https://github.com/frankxai/geninvestor-skills): research skills and a validator.
+- [awesome-investor-agent-skills](https://github.com/frankxai/awesome-investor-agent-skills): catalogue, licence flags and a weekly discovery digest for review.
 
-## Contributing and security
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). The ground rules are few and enforced by tests: every number needs evidence, no advice, the gate exists once, rates are percentage points, and no new runtime dependency without a written reason.
-
-## Licence
-
-Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). Data from the ECB is used under its reuse policy with attribution.
-
-GenInvestor is an independent open-source project and is not affiliated with any company of a similar name. See [BRAND.md](BRAND.md).
+Upstream code is absorbed only after its actual licence is read. AGPL and source-available projects inform ideas only. The dashboard preserves shadcn/ui's MIT notice; the SEC retrieval sidecar uses MIT-licensed edgartools without copying its parser.

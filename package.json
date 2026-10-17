@@ -3,12 +3,15 @@
   "private": true,
   "type": "module",
   "description": "Open-source, local-first investor intelligence: every number opens to its source, every claim is audited, nothing moves money.",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "test": "node --disable-warning=ExperimentalWarning --test \"packages/*/test/*.test.ts\"",
     "test:live": "GENINVESTOR_LIVE=1 node --disable-warning=ExperimentalWarning --test \"packages/*/test/*.test.ts\"",
     "test:engine": "uv run --directory engine --extra dev pytest -q",
     "today": "node --disable-warning=ExperimentalWarning packages/core/bin/geninvestor.ts today",
-    "mcp": "node --disable-warning=ExperimentalWarning packages/mcp/bin/geninvestor-mcp.ts"
+    "mcp": "node --disable-warning=ExperimentalWarning packages/mcp/bin/geninvestor-mcp.ts",
+    "daily": "node --disable-warning=ExperimentalWarning packages/core/bin/daily-scan.ts"
   }
 }

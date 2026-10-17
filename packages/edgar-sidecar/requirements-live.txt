@@ -1,0 +1,2 @@
+# Optional live retrieval only; parser tests use the Python standard library.
+edgartools==5.59.1

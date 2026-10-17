@@ -21,6 +21,7 @@ export interface SecPayload {
   revenue: FactPoint[]; // annual, newest first, one per fiscal year end (latest filing wins)
   operatingIncome: FactPoint[];
   netIncome: FactPoint[];
+  dilutedEps?: FactPoint[];
   liabilities: FactPoint[]; // balance-sheet dates
   equity: FactPoint[];
   /** Present when the payload was built point-in-time: nothing filed after this date is in it. */
@@ -118,6 +119,7 @@ export function extractPayload(raw: unknown, ticker: string, options: ExtractOpt
       revenue,
       operatingIncome: annualFlow(known(usd(r, "OperatingIncomeLoss"))),
       netIncome: annualFlow(known(usd(r, "NetIncomeLoss"))),
+      dilutedEps: annualFlow(known(((r.facts?.["us-gaap"]?.EarningsPerShareDiluted?.units as Record<string, RawFact[]> | undefined)?.["USD/shares"]) ?? [])),
       liabilities: annualBalance(known(usd(r, "Liabilities"))),
       equity: annualBalance(known(usd(r, "StockholdersEquity"))),
       ...(options.asOf ? { knownAsOf: options.asOf } : {}),

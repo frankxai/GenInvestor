@@ -76,7 +76,7 @@ export function sha256(text: string): string {
 export function getPath(payload: unknown, path: string): unknown {
   let cur: unknown = payload;
   for (const part of path.split(".")) {
-    if (cur === null || typeof cur !== "object") return undefined;
+    if (cur === null || typeof cur !== "object" || !Object.hasOwn(cur, part)) return undefined;
     cur = (cur as Record<string, unknown>)[part];
   }
   return cur;
@@ -125,7 +125,7 @@ export class EvidenceLedger {
   addSource(datum: Datum): SourceRow {
     const payload = canonicalJson(datum.payload);
     const digest = sha256(payload);
-    const id = sha256(`${datum.provider}|${datum.url}|${datum.asOf}|${digest}`).slice(0, 16);
+    const id = sha256(canonicalJson({ provider: datum.provider, url: datum.url, asOf: datum.asOf, digest, licenceClass: datum.licenceClass, delayedBySeconds: datum.delayedBySeconds })).slice(0, 16);
     this.db
       .prepare(
         `INSERT OR IGNORE INTO sources
@@ -133,7 +133,7 @@ export class EvidenceLedger {
          VALUES (?,?,?,?,?,?,?,?,?)`,
       )
       .run(id, datum.provider, datum.url, datum.asOf, datum.retrievedAt, datum.licenceClass, datum.delayedBySeconds, digest, payload);
-    return { ...datum, id, sha256: digest };
+    return this.getSource(id) as SourceRow;
   }
 
   getSource(id: string): SourceRow | undefined {
@@ -157,7 +157,8 @@ export class EvidenceLedger {
     for (const link of input.links) {
       if (!this.getSource(link.sourceId)) throw new Error(`Unknown source ${link.sourceId}`);
     }
-    const id = sha256(`${input.runId}|${input.kind}|${input.text}`).slice(0, 16);
+    const identityLinks = input.links.map((l) => ({ ...l, value: l.value == null ? null : String(l.value) })).sort((a, b) => canonicalJson(a) < canonicalJson(b) ? -1 : canonicalJson(a) > canonicalJson(b) ? 1 : 0);
+    const id = sha256(canonicalJson({ ...input, confidence: input.confidence ?? null, links: identityLinks })).slice(0, 16);
     const createdAt = new Date().toISOString();
     this.db.exec("BEGIN");
     try {

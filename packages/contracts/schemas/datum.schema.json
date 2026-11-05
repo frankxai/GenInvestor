@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://geninvestor.dev/schemas/datum.schema.json",
+  "title": "Provider datum",
+  "description": "What every data provider returns. as_of is when the data describes; retrieved_at is when we fetched it. licence_class decides where it may be displayed.",
+  "type": "object",
+  "required": ["provider", "url", "asOf", "retrievedAt", "licenceClass", "delayedBySeconds", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "provider": { "type": "string", "minLength": 1 },
+    "url": { "type": "string", "minLength": 1 },
+    "asOf": { "type": "string", "minLength": 4 },
+    "retrievedAt": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T" },
+    "licenceClass": { "enum": ["public", "user_licensed", "sim_only", "restricted"] },
+    "delayedBySeconds": { "type": "integer", "minimum": 0 },
+    "payload": {}
+  }
+}

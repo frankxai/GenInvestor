@@ -1,0 +1,12 @@
+{
+  "name": "@geninvestor/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "GenInvestor as an MCP server over stdio. Read-only evidence tools plus a local brief run. Zero dependencies.",
+  "bin": { "geninvestor-mcp": "./bin/geninvestor-mcp.ts" },
+  "scripts": {
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.ts\"",
+    "start": "node --disable-warning=ExperimentalWarning bin/geninvestor-mcp.ts"
+  }
+}

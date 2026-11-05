@@ -1,0 +1,61 @@
+{
+  "id": "operator-barbell",
+  "name": "Operator Barbell",
+  "description": "For someone whose largest real position is the business they operate. The premise: you already hold a concentrated, illiquid, high-variance bet on your own execution and your own sector. The liquid book's job is therefore to be boring and uncorrelated to it — not to add a second helping of the same risk. This is the config that most often changes someone's mind about what they own.",
+  "horizon_years": 10,
+  "sleeves": [
+    {
+      "id": "operating-business",
+      "name": "Operating business equity",
+      "asset_class": "business",
+      "target_weight": 0.4,
+      "liquidity": "illiquid",
+      "markable": "book",
+      "rationale": "Carried at book, not at a valuation you would like to be true. It is illiquid, undiversified, correlated with your income and your sector, and it cannot be rebalanced. Every one of those is a risk the liquid book has to offset rather than amplify.",
+      "holdings": {}
+    },
+    {
+      "id": "defensive-core",
+      "name": "Defensive liquid core",
+      "asset_class": "equity",
+      "target_weight": 0.3,
+      "liquidity": "t2",
+      "markable": "market",
+      "benchmark": "AGG",
+      "rationale": "Deliberately dull. Its mandate is to still be there, in size, on the day the business needs capital or the income stops. Underweight your own sector on purpose — do not buy more of the risk you already are.",
+      "holdings": { "AGG": 0.5, "VTI": 0.3, "VXUS": 0.2 }
+    },
+    {
+      "id": "liquidity-reserve",
+      "name": "Liquidity reserve",
+      "asset_class": "cash",
+      "target_weight": 0.2,
+      "liquidity": "t0",
+      "markable": "market",
+      "benchmark": "BIL",
+      "rationale": "Sized in months of combined personal and business burn. For an operator this is the single highest-value sleeve and the one most often underfunded, because it looks like it is earning nothing right up until it is the only thing that matters.",
+      "holdings": { "BIL": 1.0 }
+    },
+    {
+      "id": "venture",
+      "name": "Angel / private deals",
+      "asset_class": "private",
+      "target_weight": 0.05,
+      "liquidity": "illiquid",
+      "markable": "book",
+      "rationale": "Power-law returns, long lockups, no price signal. Only justifiable with enough shots to let the distribution work, and only with money whose total loss changes nothing. This sleeve is for diligence and memos, not price charts.",
+      "holdings": {}
+    },
+    {
+      "id": "convex",
+      "name": "Convex sleeve",
+      "asset_class": "crypto",
+      "target_weight": 0.05,
+      "liquidity": "t0",
+      "markable": "market",
+      "benchmark": "BTC-USD",
+      "rationale": "Capped small. Note it is liquid and marked continuously, which makes it the sleeve most likely to be traded emotionally — the visible one is not the risky one.",
+      "holdings": { "BTC-USD": 1.0 }
+    }
+  ]
+}

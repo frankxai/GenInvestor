@@ -1,6 +1,10 @@
 # GenInvestor
 
-**Open-source, local-first investor tooling where every number shows its source.**
+**Every number shows its source.**
+
+Open-source, local-first research for people who hold their own thesis. Keep the sources, state what would prove you wrong, check your calls against what happened.
+
+Information, not advice.
 
 GenInvestor builds a daily brief from public data, audits every line against stored evidence, and refuses to publish a number it cannot back. It runs on your machine and inside your AI assistant over MCP. It holds no custody, places no orders, and gives no advice.
 

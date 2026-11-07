@@ -1,0 +1,41 @@
+{
+  "id": "core-index",
+  "name": "Core Index",
+  "description": "The low-cost, broadly-diversified baseline. Every other config has to beat this one after costs and taxes to justify its complexity. Treat it as the control group, not as the boring option.",
+  "horizon_years": 20,
+  "sleeves": [
+    {
+      "id": "global-equity",
+      "name": "Global equity index",
+      "asset_class": "equity",
+      "target_weight": 0.7,
+      "liquidity": "t2",
+      "markable": "market",
+      "benchmark": "VT",
+      "rationale": "Broad equity is the growth engine. Held as an index because the evidence on persistent stock-picking skill after fees is weak, and because it removes the need to have an opinion on any single company.",
+      "holdings": { "VTI": 0.6, "VXUS": 0.4 }
+    },
+    {
+      "id": "bonds",
+      "name": "Investment-grade bonds",
+      "asset_class": "equity",
+      "target_weight": 0.2,
+      "liquidity": "t2",
+      "markable": "market",
+      "benchmark": "AGG",
+      "rationale": "Ballast. Its job is not return, it is reducing the depth of the drawdown so the plan survives contact with a bad year. Judge it on drawdown, not on yield.",
+      "holdings": { "AGG": 1.0 }
+    },
+    {
+      "id": "cash-buffer",
+      "name": "Cash buffer",
+      "asset_class": "cash",
+      "target_weight": 0.1,
+      "liquidity": "t0",
+      "markable": "market",
+      "benchmark": "BIL",
+      "rationale": "Months of expenses held so a forced sale never happens at the worst possible price. This sleeve is a behavioural instrument more than a financial one.",
+      "holdings": { "BIL": 1.0 }
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "id": "risk-balanced",
+  "name": "Risk Balanced",
+  "description": "Spreads exposure across different risk drivers — growth, rates, inflation, and a small convex sleeve — rather than across tickers that all secretly depend on the same driver. Complexity here has to earn its keep against core-index.",
+  "horizon_years": 15,
+  "sleeves": [
+    {
+      "id": "growth-equity",
+      "name": "Growth equity",
+      "asset_class": "equity",
+      "target_weight": 0.4,
+      "liquidity": "t2",
+      "markable": "market",
+      "benchmark": "VT",
+      "rationale": "Exposure to the economy expanding. Sized down from a classic 60/40 because the other sleeves are doing work a bond-only ballast cannot.",
+      "holdings": { "VTI": 0.55, "VXUS": 0.45 }
+    },
+    {
+      "id": "duration",
+      "name": "Long duration",
+      "asset_class": "equity",
+      "target_weight": 0.25,
+      "liquidity": "t2",
+      "markable": "market",
+      "benchmark": "TLT",
+      "rationale": "Exposure to falling rates and deflationary shocks. Historically negatively correlated with equity in growth scares — but that relationship broke in 2022, which is exactly the kind of assumption the backtest should be stress-testing.",
+      "holdings": { "IEF": 0.6, "TLT": 0.4 }
+    },
+    {
+      "id": "real-assets",
+      "name": "Real assets",
+      "asset_class": "real_asset",
+      "target_weight": 0.2,
+      "liquidity": "t2",
+      "markable": "market",
+      "benchmark": "GLD",
+      "rationale": "Inflation and monetary-debasement hedge. The sleeve most likely to look like dead weight for years and then justify itself in a single window.",
+      "holdings": { "GLD": 1.0 }
+    },
+    {
+      "id": "convex",
+      "name": "Convex sleeve",
+      "asset_class": "crypto",
+      "target_weight": 0.05,
+      "liquidity": "t0",
+      "markable": "market",
+      "benchmark": "BTC-USD",
+      "rationale": "Small, deliberately sized so a total loss is survivable and irrelevant to the plan. Position sizing is the entire risk control here — not conviction, not a thesis.",
+      "holdings": { "BTC-USD": 0.7, "ETH-USD": 0.3 }
+    },
+    {
+      "id": "cash-buffer",
+      "name": "Cash buffer",
+      "asset_class": "cash",
+      "target_weight": 0.1,
+      "liquidity": "t0",
+      "markable": "market",
+      "benchmark": "BIL",
+      "rationale": "Dry powder and drawdown insurance. Also the sleeve that funds rebalancing into whatever just fell.",
+      "holdings": { "BIL": 1.0 }
+    }
+  ]
+}

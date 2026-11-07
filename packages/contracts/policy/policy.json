@@ -1,0 +1,355 @@
+{
+  "allowedByMode": {
+    "L0_RESEARCH": [
+      "research"
+    ],
+    "L1_STRATEGY": [
+      "allocation_review",
+      "education_brief",
+      "research",
+      "risk_register",
+      "strategy_memo"
+    ],
+    "L2_SIMULATION": [
+      "allocation_review",
+      "artifact_write",
+      "backtest",
+      "education_brief",
+      "paper_trade",
+      "rebalance_simulation",
+      "research",
+      "risk_register",
+      "strategy_memo",
+      "theory_test"
+    ],
+    "L3_HUMAN_APPROVED_DRAFT": [
+      "draft_order",
+      "draft_transfer"
+    ]
+  },
+  "cases": [
+    {
+      "action": {
+        "action_type": "research"
+      },
+      "expect": "allow",
+      "id": "research",
+      "why": "reading and summarising is the job"
+    },
+    {
+      "action": {
+        "action_type": "backtest"
+      },
+      "expect": "allow",
+      "id": "backtest",
+      "why": "simulation is inside the ceiling"
+    },
+    {
+      "action": {
+        "action_type": "theory_test"
+      },
+      "expect": "allow",
+      "id": "theory_test",
+      "why": "walk-forward validation"
+    },
+    {
+      "action": {
+        "action_type": "paper_trade"
+      },
+      "expect": "allow",
+      "id": "paper_trade",
+      "why": "paper only"
+    },
+    {
+      "action": {
+        "action_type": "rebalance_simulation"
+      },
+      "expect": "allow",
+      "id": "rebalance_sim",
+      "why": "simulated rebalance"
+    },
+    {
+      "action": {
+        "action_type": "strategy_memo"
+      },
+      "expect": "allow",
+      "id": "memo",
+      "why": "memo is a document"
+    },
+    {
+      "action": {
+        "action_type": "artifact_write"
+      },
+      "expect": "allow",
+      "id": "artifact",
+      "why": "study output to disk"
+    },
+    {
+      "action": {
+        "action_type": "paper_trade",
+        "amount": 100.0,
+        "cap": 500.0
+      },
+      "expect": "allow",
+      "id": "within_cap",
+      "why": "under the stated cap"
+    },
+    {
+      "action": {
+        "action_type": "live_trade"
+      },
+      "expect": "human_gate",
+      "id": "live_trade",
+      "why": "capital moves"
+    },
+    {
+      "action": {
+        "action_type": "transfer"
+      },
+      "expect": "human_gate",
+      "id": "transfer",
+      "why": "capital moves"
+    },
+    {
+      "action": {
+        "action_type": "wallet_sign"
+      },
+      "expect": "human_gate",
+      "id": "wallet_sign",
+      "why": "signing is irreversible"
+    },
+    {
+      "action": {
+        "action_type": "custody_change"
+      },
+      "expect": "human_gate",
+      "id": "custody",
+      "why": "custody is a legal act"
+    },
+    {
+      "action": {
+        "action_type": "brokerage_key_change"
+      },
+      "expect": "human_gate",
+      "id": "broker_key",
+      "why": "credential change"
+    },
+    {
+      "action": {
+        "action_type": "draft_order"
+      },
+      "expect": "human_gate",
+      "id": "draft_order_ceiling",
+      "why": "drafting orders needs approval"
+    },
+    {
+      "action": {
+        "action_type": "legal_tax_compliance"
+      },
+      "expect": "human_gate",
+      "id": "legal_tax",
+      "why": "not the engine's call"
+    },
+    {
+      "action": {
+        "action_type": "publish_private"
+      },
+      "expect": "human_gate",
+      "id": "publish_private",
+      "why": "private data leaves the box"
+    },
+    {
+      "action": {
+        "action_type": "backtest",
+        "uses_real_funds": true
+      },
+      "expect": "human_gate",
+      "id": "backtest_real_funds",
+      "why": "flag overrides verb"
+    },
+    {
+      "action": {
+        "action_type": "paper_trade",
+        "touches_wallet": true
+      },
+      "expect": "human_gate",
+      "id": "paper_touches_wallet",
+      "why": "flag overrides verb"
+    },
+    {
+      "action": {
+        "action_type": "research",
+        "touches_banking": true
+      },
+      "expect": "human_gate",
+      "id": "research_touches_bank",
+      "why": "flag overrides verb"
+    },
+    {
+      "action": {
+        "action_type": "paper_trade",
+        "amount": 900.0,
+        "cap": 500.0
+      },
+      "expect": "human_gate",
+      "id": "over_cap",
+      "why": "amount exceeds cap"
+    },
+    {
+      "action": {
+        "action_type": "paper_trade",
+        "amount": 100.0
+      },
+      "expect": "human_gate",
+      "id": "amount_no_cap",
+      "why": "missing cap fails closed"
+    },
+    {
+      "action": {
+        "action_type": "paper_trade",
+        "cap": 100.0
+      },
+      "expect": "human_gate",
+      "id": "cap_no_amount",
+      "why": "missing amount fails closed"
+    },
+    {
+      "action": {
+        "action_type": "optimize_my_portfolio_live"
+      },
+      "expect": "human_gate",
+      "id": "unknown_verb",
+      "why": "unlisted verbs fail closed"
+    },
+    {
+      "action": {
+        "action_type": ""
+      },
+      "expect": "human_gate",
+      "id": "empty_verb",
+      "why": "empty verb fails closed"
+    },
+    {
+      "action": {
+        "action_type": "Backtest"
+      },
+      "expect": "human_gate",
+      "id": "case_variant",
+      "why": "no fuzzy matching on verbs"
+    },
+    {
+      "action": {
+        "action_type": "real_autonomous_execution"
+      },
+      "expect": "blocked",
+      "id": "autonomous_exec",
+      "why": "excluded outright"
+    },
+    {
+      "action": {
+        "action_type": "store_secret"
+      },
+      "expect": "blocked",
+      "id": "store_secret",
+      "why": "secrets never enter"
+    },
+    {
+      "action": {
+        "action_type": "store_seed_phrase"
+      },
+      "expect": "blocked",
+      "id": "store_seed",
+      "why": "recovery material"
+    },
+    {
+      "action": {
+        "action_type": "store_private_key"
+      },
+      "expect": "blocked",
+      "id": "store_key",
+      "why": "recovery material"
+    },
+    {
+      "action": {
+        "action_type": "bypass_human_approval"
+      },
+      "expect": "blocked",
+      "id": "bypass_approval",
+      "why": "the gate cannot be argued with"
+    },
+    {
+      "action": {
+        "action_type": "raw_account_export_git"
+      },
+      "expect": "blocked",
+      "id": "raw_export",
+      "why": "account data must not reach git"
+    },
+    {
+      "action": {
+        "action_type": "research",
+        "requires_secret": true
+      },
+      "expect": "blocked",
+      "id": "secret_flag_on_research",
+      "why": "secret flag blocks any verb"
+    },
+    {
+      "action": {
+        "action_type": "backtest",
+        "mode": "L5_REAL_AUTONOMY_EXCLUDED"
+      },
+      "expect": "blocked",
+      "id": "l5_backtest",
+      "why": "L5 blocks everything"
+    },
+    {
+      "action": {
+        "action_type": "backtest",
+        "mode": "L4_SANDBOX_WALLET_FUTURE"
+      },
+      "expect": "blocked",
+      "id": "l4_backtest",
+      "why": "L4 is reserved"
+    },
+    {
+      "action": {
+        "action_type": "store_secret",
+        "uses_real_funds": true
+      },
+      "expect": "blocked",
+      "id": "blocked_beats_gate",
+      "why": "block outranks gate"
+    }
+  ],
+  "ceiling": "L2_SIMULATION",
+  "hardBlocked": [
+    "bypass_human_approval",
+    "raw_account_export_git",
+    "real_autonomous_execution",
+    "store_private_key",
+    "store_secret",
+    "store_seed_phrase"
+  ],
+  "humanGate": [
+    "brokerage_key_change",
+    "custody_change",
+    "draft_order",
+    "draft_transfer",
+    "exchange_key_change",
+    "legal_tax_compliance",
+    "live_trade",
+    "publish_private",
+    "transfer",
+    "wallet_sign"
+  ],
+  "modes": [
+    "L0_RESEARCH",
+    "L1_STRATEGY",
+    "L2_SIMULATION",
+    "L3_HUMAN_APPROVED_DRAFT",
+    "L4_SANDBOX_WALLET_FUTURE",
+    "L5_REAL_AUTONOMY_EXCLUDED"
+  ],
+  "version": 1
+}

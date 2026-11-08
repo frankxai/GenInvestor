@@ -1,0 +1,85 @@
+# GenInvestor
+
+> Local-first investor research workspace: every number opens to its source. Evidence ledger, claims audit, CLI and a stdio MCP server. Information, not advice; no custody, no orders, no money movement.
+
+GenInvestor is a command-line and MCP product, not a web app. It builds a daily brief from public data, refuses to publish a figure it cannot back with stored evidence, and lets a reader inspect the evidence chain behind any claim. It runs on the reader's own machine.
+
+Status: alpha (0.1). Apache-2.0.
+
+## Requirements
+
+- Node 22.18 or newer (24 recommended).
+- Python via `uv` only for the optional simulation engine tests.
+
+## Install
+
+```bash
+git clone https://github.com/frankxai/GenInvestor && cd GenInvestor
+npm install
+```
+
+`npm install` links the `packages/*` workspaces. There are no third-party runtime dependencies.
+
+## Test
+
+```bash
+npm test            # TypeScript: contracts, core, MCP, real CLI end to end
+npm run test:engine # Python simulation engine (uv)
+```
+
+Opt-in live tests against the ECB and SEC APIs: `npm run test:live`.
+
+## Daily brief
+
+```bash
+npm run today
+```
+
+Fetches public ECB data, audits every line against stored evidence, and publishes the brief locally. Nothing leaves the machine except the public data request.
+
+## MCP server
+
+```bash
+npm run mcp
+```
+
+Starts `@geninvestor/mcp` v0.1.0 (private, stdio transport, zero dependencies) from `packages/mcp/bin/geninvestor-mcp.ts`. Client setup, transport details and examples: [docs/MCP.md](docs/MCP.md).
+
+## MCP tools
+
+Seven tools. The first six are annotated read-only; `run_today` is the only tool that fetches from the network and writes files.
+
+- `check_action` — ask whether an action would be allowed, needs a human, or is blocked. Answers only; never performs the action.
+- `explain_claim` — show a claim, each evidence link, and the source with its as-of date, retrieval time, sha256 and licence class.
+- `verify_ledger` — re-hash every stored source and report any whose bytes no longer match.
+- `get_latest_brief` — read the last brief published locally, as markdown and structured data. Runs nothing.
+- `list_opportunities` — read the last set of research candidates found against the owner's mandate. Candidates, not recommendations; runs nothing.
+- `get_calibration` — read forecast counts, due dates, and Brier score only once 30 are resolved. Cannot register or resolve a call.
+- `run_today` — build today's sourced brief locally. Local-only: it is not a market action, places no order and moves no money.
+
+Input schemas are served by the server: call `tools/list`.
+
+## Safety boundary
+
+- Read-only on markets. The server holds no custody, places no orders, moves no money, and stores no keys.
+- No tool approves, trades, transfers, signs, drafts an order, or registers a forecast. A test fails if one is added.
+- Every tool call passes the same autonomy gate the engine uses. The ceiling is `L2_SIMULATION`.
+- A thesis marked broken stops the run and waits for a human decision made outside the server.
+
+## Evidence ledger
+
+Each stored source records: `provider`, `url`, `asOf` (when the data describes), `retrievedAt` (when it was fetched), `sha256` (of the stored bytes), and `licenceClass` (`public`, `user_licensed`, `sim_only`, `restricted`). The ledger is append-only; `verify_ledger` and `npm run today` re-hash sources to expose tampering.
+
+## Disclaimer
+
+Information, not advice. GenInvestor performs no suitability check, gives no recommendation, target or offer, and cannot know your circumstances. Output may be wrong, incomplete or stale, and each figure lists its source, as-of date and retrieval time so it can be checked. You are responsible for your own decisions and for the licence terms of any data you connect. Full text: [DISCLAIMER.md](DISCLAIMER.md).
+
+## Docs
+
+- [README.md](README.md) — quick start, guarantees and how each is tested, known limits, roadmap.
+- [MANIFESTO.md](MANIFESTO.md) — what the project is trying to build.
+- [DISCLAIMER.md](DISCLAIMER.md) — the full disclaimer.
+- [packages/mcp](packages/mcp) — the MCP server package.
+- [docs/MCP.md](docs/MCP.md) — stdio connection guide, tool table, examples, limits.
+- [BRAND.md](BRAND.md) — naming and reference rules.
+- [SECURITY.md](SECURITY.md) — how to report a vulnerability.

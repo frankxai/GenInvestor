@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
+  <title id="title">GenInvestor</title>
+  <desc id="desc">Social card. Every number shows its source. Evidence ledger chain: claim, source, as-of, sha256. Read-only research, information not advice.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#070A12"/>
+      <stop offset="0.55" stop-color="#04060C"/>
+      <stop offset="1" stop-color="#02040A"/>
+    </linearGradient>
+    <radialGradient id="glowGold" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#E8B45A" stop-opacity="0.18"/>
+      <stop offset="0.55" stop-color="#E8B45A" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#E8B45A" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowCyan" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#6FE3F5" stop-opacity="0.15"/>
+      <stop offset="0.5" stop-color="#6FE3F5" stop-opacity="0.035"/>
+      <stop offset="1" stop-color="#6FE3F5" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#C6D4E6"/>
+    </linearGradient>
+    <linearGradient id="rule" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="0.1" stop-color="#E8B45A" stop-opacity="0.22"/>
+      <stop offset="0.7" stop-color="#FFFFFF" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0.18" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.07"/>
+      <stop offset="0.6" stop-color="#FFFFFF" stop-opacity="0.026"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.012"/>
+    </linearGradient>
+    <linearGradient id="rail" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6FE3F5" stop-opacity="0.7"/>
+      <stop offset="0.62" stop-color="#6FE3F5" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#E8B45A" stop-opacity="0.6"/>
+    </linearGradient>
+    <pattern id="dots" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="1.2" cy="1.2" r="1" fill="#FFFFFF" fill-opacity="0.05"/>
+    </pattern>
+  </defs>
+
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <circle cx="200" cy="60" r="400" fill="url(#glowCyan)"/>
+  <circle cx="1180" cy="620" r="400" fill="url(#glowGold)"/>
+  <rect width="1280" height="640" fill="url(#dots)"/>
+  <rect x="0" y="0.5" width="1280" height="1" fill="#FFFFFF" fill-opacity="0.07"/>
+  <rect x="0" y="639" width="1280" height="1" fill="#FFFFFF" fill-opacity="0.05"/>
+
+  <g font-family="Inter, 'Segoe UI Variable Display', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif">
+    <g font-size="11.5" letter-spacing="3.1" font-weight="600">
+      <circle cx="76" cy="67.5" r="2.6" fill="#6FE3F5"/>
+      <text x="90" y="72" fill="#8FA3BC">FRANKXAI / OPEN RESEARCH</text>
+      <text x="1204" y="72" text-anchor="end" fill="#C79A4E" letter-spacing="2.6">EVIDENCE LEDGER</text>
+    </g>
+
+    <text x="71" y="168" font-size="62" font-weight="700" letter-spacing="2.6" fill="url(#ink)">GENINVESTOR</text>
+    <text x="72" y="212" font-size="23" font-weight="400" fill="#93A6BF">Every number shows its source</text>
+
+    <rect x="72" y="244" width="1136" height="1" fill="url(#rule)"/>
+
+    <g>
+      <rect x="72" y="270" width="1136" height="306" rx="16" fill="#0A101C" fill-opacity="0.55"/>
+      <rect x="72" y="270" width="1136" height="306" rx="16" fill="url(#glass)" stroke="#FFFFFF" stroke-opacity="0.11"/>
+      <rect x="73" y="270.5" width="1134" height="1" fill="#FFFFFF" fill-opacity="0.16"/>
+
+      <path d="M116 306 V510" stroke="url(#rail)" stroke-width="1.2"/>
+
+      <g>
+        <circle cx="116" cy="306" r="3.8" fill="#6FE3F5" stroke="#05070D" stroke-width="2"/>
+        <text x="148" y="306" font-size="10.5" letter-spacing="2.6" font-weight="600" fill="#6FE3F5">CLAIM</text>
+        <text x="148" y="333" font-size="19" font-weight="500" fill="#EDF3FA">Text, kind, and the links that back it</text>
+        <text x="148" y="352" font-size="11" fill="#6F8098">claim.schema.json</text>
+      </g>
+
+      <g>
+        <circle cx="116" cy="374" r="3.8" fill="#6FE3F5" stroke="#05070D" stroke-width="2"/>
+        <text x="148" y="374" font-size="10.5" letter-spacing="2.6" font-weight="600" fill="#6FE3F5">SOURCE</text>
+        <text x="148" y="401" font-size="19" font-weight="500" fill="#EDF3FA">The provider and the page it came from</text>
+        <text x="148" y="420" font-size="11" fill="#6F8098">provider, url, licenceClass</text>
+      </g>
+
+      <g>
+        <circle cx="116" cy="442" r="3.8" fill="#6FE3F5" stroke="#05070D" stroke-width="2"/>
+        <text x="148" y="442" font-size="10.5" letter-spacing="2.6" font-weight="600" fill="#6FE3F5">AS OF</text>
+        <text x="148" y="469" font-size="19" font-weight="500" fill="#EDF3FA">When the data describes, and when we read it</text>
+        <text x="148" y="488" font-size="11" fill="#6F8098">asOf, retrievedAt</text>
+      </g>
+
+      <g>
+        <circle cx="116" cy="510" r="3.8" fill="#E8B45A" stroke="#05070D" stroke-width="2"/>
+        <text x="148" y="510" font-size="10.5" letter-spacing="2.6" font-weight="600" fill="#E8B45A">HASH</text>
+        <text x="148" y="537" font-size="19" font-weight="500" fill="#F5EEE0">Re-hashed on demand, tampering reported</text>
+        <text x="148" y="556" font-size="11" fill="#8C8172">sha256</text>
+      </g>
+    </g>
+
+    <g font-size="11.5" fill="#6E7E96">
+      <rect x="72" y="606" width="14" height="1" fill="#E8B45A" fill-opacity="0.7"/>
+      <text x="96" y="610.5" letter-spacing="0.2">Read-only research. Information, not advice.</text>
+      <text x="1208" y="610.5" text-anchor="end" letter-spacing="0.2">Alpha 0.1 &#183; Apache-2.0</text>
+    </g>
+  </g>
+</svg>

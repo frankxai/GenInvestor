@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/github/header.svg" alt="GenInvestor: every number shows its source, drawn as an evidence ledger chain from claim to source, as-of date and sha256 digest" width="100%">
+</p>
+
 # GenInvestor
 
 **Every number shows its source.**

@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="400" viewBox="0 0 1600 400" role="img" aria-labelledby="title desc">
+  <title id="title">GenInvestor</title>
+  <desc id="desc">Every number shows its source. An evidence ledger chain: a claim, the source behind it, the as-of date, and a sha256 digest that can be re-hashed and checked. Read-only research. Information, not advice.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#070A12"/>
+      <stop offset="0.55" stop-color="#04060C"/>
+      <stop offset="1" stop-color="#02040A"/>
+    </linearGradient>
+
+    <radialGradient id="glowGold" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#E8B45A" stop-opacity="0.18"/>
+      <stop offset="0.55" stop-color="#E8B45A" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#E8B45A" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="glowCyan" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#6FE3F5" stop-opacity="0.15"/>
+      <stop offset="0.5" stop-color="#6FE3F5" stop-opacity="0.035"/>
+      <stop offset="1" stop-color="#6FE3F5" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#C6D4E6"/>
+    </linearGradient>
+
+    <linearGradient id="rule" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="0.12" stop-color="#E8B45A" stop-opacity="0.22"/>
+      <stop offset="0.72" stop-color="#FFFFFF" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="0.32" stop-color="#FFFFFF" stop-opacity="0.20"/>
+      <stop offset="0.68" stop-color="#FFFFFF" stop-opacity="0.09"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="glass" x1="0" y1="0" x2="0.18" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.07"/>
+      <stop offset="0.6" stop-color="#FFFFFF" stop-opacity="0.026"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.012"/>
+    </linearGradient>
+
+    <pattern id="dots" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="1.2" cy="1.2" r="1" fill="#FFFFFF" fill-opacity="0.05"/>
+    </pattern>
+
+    <linearGradient id="chain" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#6FE3F5" stop-opacity="0.75"/>
+      <stop offset="0.62" stop-color="#6FE3F5" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#E8B45A" stop-opacity="0.62"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="400" fill="url(#bg)"/>
+  <circle cx="262" cy="30" r="420" fill="url(#glowCyan)"/>
+  <circle cx="1436" cy="392" r="400" fill="url(#glowGold)"/>
+  <rect width="1600" height="400" fill="url(#dots)"/>
+  <rect x="0" y="0.5" width="1600" height="1" fill="#FFFFFF" fill-opacity="0.07"/>
+  <rect x="0" y="399" width="1600" height="1" fill="#FFFFFF" fill-opacity="0.05"/>
+
+  <g font-family="Inter, 'Segoe UI Variable Display', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif">
+    <g font-size="11.5" letter-spacing="3.1" font-weight="600">
+      <circle cx="76" cy="61.5" r="2.6" fill="#6FE3F5"/>
+      <text x="90" y="66" fill="#8FA3BC">FRANKXAI / OPEN RESEARCH</text>
+      <text x="1528" y="66" text-anchor="end" fill="#C79A4E" letter-spacing="2.6">EVIDENCE LEDGER</text>
+    </g>
+
+    <text x="71" y="141" font-size="58" font-weight="700" letter-spacing="2.4" fill="url(#ink)">GENINVESTOR</text>
+    <text x="72" y="181" font-size="21" font-weight="400" letter-spacing="0.1" fill="#93A6BF">Every number shows its source</text>
+
+    <rect x="72" y="204" width="1456" height="1" fill="url(#rule)"/>
+
+    <g>
+      <rect x="72" y="224" width="1456" height="110" rx="16" fill="#0A101C" fill-opacity="0.55"/>
+      <rect x="72" y="224" width="1456" height="110" rx="16" fill="url(#glass)" stroke="#FFFFFF" stroke-opacity="0.11"/>
+      <rect x="73" y="224.5" width="1454" height="1" fill="url(#sheen)"/>
+
+      <path d="M100 250 H464 M464 250 H828 M828 250 H1192" stroke="url(#chain)" stroke-width="1.2"/>
+
+      <g>
+        <circle cx="100" cy="250" r="3.6" fill="#6FE3F5" stroke="#05070D" stroke-width="2"/>
+        <text x="100" y="278" font-size="10.5" letter-spacing="2.6" font-weight="600" fill="#6FE3F5">CLAIM</text>
+        <text x="100" y="303" font-size="16.5" font-weight="500" fill="#EDF3FA">text, kind, links</text>
+        <text x="100" y="321" font-size="10.5" letter-spacing="0.2" fill="#6F8098">claim.schema.json</text>
+      </g>
+
+      <g>
+        <circle cx="464" cy="250" r="3.6" fill="#6FE3F5" stroke="#05070D" stroke-width="2"/>
+        <text x="464" y="278" font-size="10.5" letter-spacing="2.6" font-weight="600" fill="#6FE3F5">SOURCE</text>
+        <text x="464" y="303" font-size="16.5" font-weight="500" fill="#EDF3FA">provider, url</text>
+        <text x="464" y="321" font-size="10.5" letter-spacing="0.2" fill="#6F8098">datum.schema.json</text>
+      </g>
+
+      <g>
+        <circle cx="828" cy="250" r="3.6" fill="#6FE3F5" stroke="#05070D" stroke-width="2"/>
+        <text x="828" y="278" font-size="10.5" letter-spacing="2.6" font-weight="600" fill="#6FE3F5">AS OF</text>
+        <text x="828" y="303" font-size="16.5" font-weight="500" fill="#EDF3FA">asOf, retrievedAt</text>
+        <text x="828" y="321" font-size="10.5" letter-spacing="0.2" fill="#6F8098">point in time</text>
+      </g>
+
+      <g>
+        <circle cx="1192" cy="250" r="3.6" fill="#E8B45A" stroke="#05070D" stroke-width="2"/>
+        <text x="1192" y="278" font-size="10.5" letter-spacing="2.6" font-weight="600" fill="#E8B45A">HASH</text>
+        <text x="1192" y="303" font-size="16.5" font-weight="500" fill="#F5EEE0">sha256</text>
+        <text x="1192" y="321" font-size="10.5" letter-spacing="0.2" fill="#8C8172">verify, re-hash</text>
+      </g>
+    </g>
+
+    <g font-size="11.5" fill="#6E7E96">
+      <rect x="72" y="359" width="14" height="1" fill="#E8B45A" fill-opacity="0.7"/>
+      <text x="96" y="363.5" letter-spacing="0.2">Claim &#8594; source &#8594; as-of &#8594; hash. Read-only research. Information, not advice.</text>
+      <text x="1528" y="363.5" text-anchor="end" letter-spacing="0.2">Alpha 0.1 &#183; Apache-2.0</text>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,16 @@
+// Public demo of the desk as a static Cloudflare Worker (assets only, no server code).
+// Build first, from the repo root, with SYNTHETIC data only:
+//   python desk/snapshot.py desk/deploy/dist/index.html --data desk/sample/desk.json --standalone
+// Then check without publishing:  npx wrangler deploy --dry-run --config desk/deploy/wrangler.jsonc
+// Publish with `wrangler deploy` once the dry run is clean.
+// Never build this from desk/state: live prices and headlines are not cleared for redistribution.
+// Fields checked against developers.cloudflare.com/workers/static-assets on 2026-11-13. The demo is
+// one page, so unknown paths serve index.html; "404-page" would need a 404.html that does not exist.
+{
+  "name": "geninvestor-desk-demo",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}

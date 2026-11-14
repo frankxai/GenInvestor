@@ -1,0 +1,261 @@
+{
+  "name": "GenInvestor desk",
+  "ceiling": "L2_SIMULATION",
+  "principle": "Agents research, argue, size and check. You run your book; the Strategist runs its own beside it so both can be measured. Nothing leaves paper.",
+  "lineage": [
+    {
+      "name": "TradingAgents",
+      "url": "https://github.com/TauricResearch/TradingAgents",
+      "took": "Analyst team, bull/bear debate, trader, risk team, portfolio manager approval"
+    },
+    {
+      "name": "day-trader-skill",
+      "url": "https://github.com/Jakeschincariol/day-trader-skill",
+      "took": "Scanner and news tools, plan-before-entry, Time Machine replay, risk PASS/BLOCK, no order without a yes"
+    },
+    {
+      "name": "claude-trading-skills",
+      "url": "https://github.com/tradermonty/claude-trading-skills",
+      "took": "Regime check before candidates, journal and postmortem loop"
+    },
+    {
+      "name": "GenInvestor",
+      "url": "https://github.com/frankxai/GenInvestor",
+      "took": "Skeptic stance, calibration ledger, every number names its source"
+    },
+    {
+      "name": "Cloudflare Clef",
+      "url": "https://developers.cloudflare.com/workers-ai/models/clef-flash/",
+      "took": "Typed decisions with probabilities for the News Judge; Jev-compatible API"
+    }
+  ],
+  "crews": [
+    {
+      "id": "analysts",
+      "name": "Analysts",
+      "job": "Read the market and the names in parallel"
+    },
+    {
+      "id": "research",
+      "name": "Research",
+      "job": "Argue both sides of every candidate"
+    },
+    {
+      "id": "trading",
+      "name": "Trading",
+      "job": "Turn a candidate into a plan with odds"
+    },
+    {
+      "id": "risk",
+      "name": "Risk",
+      "job": "Size it and block anything over the limits"
+    },
+    {
+      "id": "decision",
+      "name": "Decision",
+      "job": "Say yes or no"
+    },
+    {
+      "id": "learning",
+      "name": "Learning",
+      "job": "Score the odds against what happened"
+    },
+    {
+      "id": "editorial",
+      "name": "Editorial",
+      "job": "Make every word and pixel clear before you see it"
+    }
+  ],
+  "agents": [
+    {
+      "id": "regime",
+      "name": "Regime Analyst",
+      "crew": "analysts",
+      "skill": "built in (SPY, QQQ, IWM, VIX, TLT, GLD)",
+      "method": "Price against 50 and 200-day averages, VIX level",
+      "runs_on": "deterministic",
+      "writes": "regime",
+      "cost": "$0"
+    },
+    {
+      "id": "scanner",
+      "name": "Chart Scanner",
+      "crew": "analysts",
+      "skill": "day-trader-skill:trader-scanner",
+      "method": "scan.py daily on the watchlist: 20-day breakout, bull flag, MA20 reclaim, oversold, oversold bounce",
+      "runs_on": "deterministic",
+      "writes": "candidates",
+      "cost": "$0"
+    },
+    {
+      "id": "news",
+      "name": "News Monitor",
+      "crew": "analysts",
+      "skill": "day-trader-skill:trader-news",
+      "method": "news.py headlines and price moves for candidates and holdings",
+      "runs_on": "deterministic",
+      "writes": "news",
+      "cost": "$0"
+    },
+    {
+      "id": "judge",
+      "name": "News Judge",
+      "crew": "analysts",
+      "skill": "Cloudflare Clef-flash (System One API, Jev-compatible)",
+      "method": "Reads each name's own headlines; returns event-risk probability, direction and materiality. Event risk over the limit blocks the ticket.",
+      "runs_on": "Workers AI decision model",
+      "writes": "judge",
+      "cost": "~$0.0004 per cycle (Clef-flash)"
+    },
+    {
+      "id": "crossmarket",
+      "name": "Cross-Market Analyst",
+      "crew": "analysts",
+      "skill": "built in (15 markets in 5 layers)",
+      "method": "Trend, stretch in units of own volatility, oversold base rate, and the links between crypto, stocks, gold, yields, the dollar and credit",
+      "runs_on": "deterministic",
+      "writes": "cross",
+      "cost": "$0"
+    },
+    {
+      "id": "arbitrage",
+      "name": "Arbitrage Scout",
+      "crew": "analysts",
+      "skill": "built in (Coinbase, Kraken, Bitstamp, Gemini public tickers)",
+      "method": "Cheapest ask against richest bid across four exchanges for BTC and ETH, net of entry-tier taker fees; read-only",
+      "runs_on": "deterministic",
+      "writes": "arbitrage",
+      "cost": "$0"
+    },
+    {
+      "id": "bull",
+      "name": "Bull Researcher",
+      "crew": "research",
+      "skill": "trading-desk (this repo)",
+      "method": "Strongest case for the trade from checkable facts",
+      "runs_on": "rules, or Claude in session",
+      "writes": "debate.bull",
+      "cost": "$0 rules, or your Claude plan"
+    },
+    {
+      "id": "bear",
+      "name": "Bear Researcher",
+      "crew": "research",
+      "skill": "trading-desk (this repo)",
+      "method": "Strongest case against, including event risk and thin history",
+      "runs_on": "rules, or Claude in session",
+      "writes": "debate.bear",
+      "cost": "$0 rules, or your Claude plan"
+    },
+    {
+      "id": "trader",
+      "name": "Trade Planner",
+      "crew": "trading",
+      "skill": "day-trader-skill:trader-exit",
+      "method": "Stop under ATR, target as a multiple of risk, set before entry",
+      "runs_on": "deterministic",
+      "writes": "plan",
+      "cost": "$0"
+    },
+    {
+      "id": "timemachine",
+      "name": "Time Machine",
+      "crew": "trading",
+      "skill": "day-trader-skill:trader-timemachine",
+      "method": "10,000 seeded replays of the stock's own daily returns, plus every past time the setup fired",
+      "runs_on": "deterministic",
+      "writes": "odds, history",
+      "cost": "$0"
+    },
+    {
+      "id": "daylab",
+      "name": "Day-Trading Lab",
+      "crew": "trading",
+      "skill": "built in (Yahoo 60-minute bars)",
+      "method": "Tests first-hour breakout, gap fade and trend-day rules per symbol over 60 sessions, flat by the close, with costs and a t-statistic",
+      "runs_on": "deterministic",
+      "writes": "daylab",
+      "cost": "$0"
+    },
+    {
+      "id": "risk",
+      "name": "Risk Manager",
+      "crew": "risk",
+      "skill": "day-trader-skill:trader-budget + trader-risk",
+      "method": "Size to max loss, cap position and cash, then PASS or BLOCK with every reason",
+      "runs_on": "deterministic",
+      "writes": "ticket",
+      "cost": "$0"
+    },
+    {
+      "id": "pm",
+      "name": "Portfolio Manager",
+      "crew": "decision",
+      "skill": "You",
+      "method": "Reads the ticket and types yes or no. Only a yes moves paper cash.",
+      "runs_on": "human",
+      "writes": "approval",
+      "cost": "you"
+    },
+    {
+      "id": "strategist",
+      "name": "Strategist",
+      "crew": "decision",
+      "skill": "Claude (trading-desk skill)",
+      "method": "Writes the strategy and places its own paper bets in a separate model book, judged against SPY and against your book",
+      "runs_on": "Claude in session",
+      "writes": "strategy, model book",
+      "cost": "your Claude plan"
+    },
+    {
+      "id": "journal",
+      "name": "Journal",
+      "crew": "learning",
+      "skill": "GenInvestor calibration ledger",
+      "method": "Marks paper positions on daily closes, Brier score of the Time Machine's odds",
+      "runs_on": "deterministic",
+      "writes": "book, calibration",
+      "cost": "$0"
+    },
+    {
+      "id": "hindsight",
+      "name": "Hindsight Analyst",
+      "crew": "learning",
+      "skill": "built in",
+      "method": "Replays every past firing of every rule on the watchlist with the desk's plan, split by market regime: what would have been a good decision",
+      "runs_on": "deterministic",
+      "writes": "hindsight",
+      "cost": "$0"
+    },
+    {
+      "id": "arena",
+      "name": "Arena Referee",
+      "crew": "learning",
+      "skill": "built in (7 strategy agents)",
+      "method": "Runs trend, mean reversion, dual momentum, breakout, crypto trend, all weather and buy-and-hold on one year with costs; scores every agent's holdings forward each day; weights them by trailing Sharpe",
+      "runs_on": "deterministic",
+      "writes": "arena, arena ledger",
+      "cost": "$0"
+    },
+    {
+      "id": "editor",
+      "name": "Editor",
+      "crew": "editorial",
+      "skill": "humanizer 3.1.0 (estate)",
+      "method": "Checks every brief, call and debate for dashes, stock AI words, overlong sentences and staged contrasts; Claude does the judgment pass",
+      "runs_on": "deterministic + Claude in session",
+      "writes": "editorial",
+      "cost": "$0"
+    },
+    {
+      "id": "designer",
+      "name": "Design Critic",
+      "crew": "editorial",
+      "skill": "emil-design-eng + Impeccable finish",
+      "method": "Holds the feel contract (press 160ms, entrances 500ms, charts never animate) and runs one Impeccable finish after a real visual look",
+      "runs_on": "Claude in session",
+      "writes": "design review",
+      "cost": "your Claude plan"
+    }
+  ]
+}
